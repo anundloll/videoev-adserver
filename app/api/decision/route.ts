@@ -1,21 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const S3 = "https://videoev.s3.us-east-1.amazonaws.com";
+
 const AD_MAP: Record<string, { brand: string; s3Url: string; cpm: number }> = {
-  porsche:  { brand: "Rolex",           s3Url: "https://videoev.s3.us-east-1.amazonaws.com/rolex-30s.mp4",       cpm: 42 },
-  tesla:    { brand: "Bang & Olufsen",  s3Url: "https://videoev.s3.us-east-1.amazonaws.com/beo-30s.mp4",        cpm: 38 },
-  lucid:    { brand: "Hermès",          s3Url: "https://videoev.s3.us-east-1.amazonaws.com/hermes-30s.mp4",     cpm: 55 },
-  bmw:      { brand: "BMW",             s3Url: "https://videoev.s3.us-east-1.amazonaws.com/bmw-30s.mp4",        cpm: 35 },
-  rivian:   { brand: "Patagonia",       s3Url: "https://videoev.s3.us-east-1.amazonaws.com/patagonia-30s.mp4",  cpm: 28 },
-  genesis:  { brand: "Canyon Ranch",    s3Url: "https://videoev.s3.us-east-1.amazonaws.com/canyonranch-30s.mp4",cpm: 32 },
-  cadillac: { brand: "Saks",            s3Url: "https://videoev.s3.us-east-1.amazonaws.com/saks-30s.mp4",       cpm: 30 },
-  jaguar:   { brand: "Macallan",        s3Url: "https://videoev.s3.us-east-1.amazonaws.com/macallan-30s.mp4",   cpm: 40 },
-  polestar: { brand: "REI",             s3Url: "https://videoev.s3.us-east-1.amazonaws.com/rei-30s.mp4",        cpm: 25 },
-  volvo:    { brand: "NetJets",         s3Url: "https://videoev.s3.us-east-1.amazonaws.com/netjets-30s.mp4",    cpm: 48 },
+  // Tech early adopter → Apple iPhone 17 Pro
+  tesla:    { brand: "Apple",           s3Url: `${S3}/Apple+iPhone+17+Pro+TV+Spot+Smart+Group+Selfies+Song+by+Inspector+Spacetime+-+iSpot.mp4`, cpm: 42 },
+  // Affluent globe-trotter → Capital One Venture X (Jennifer Garner)
+  porsche:  { brand: "Capital One",     s3Url: `${S3}/Capital+One+Venture+X+Card+TV+Spot+Globe+Hopping+30+Featuring+Jennifer+Garner+-+iSpot.mp4`, cpm: 45 },
+  // Ultra-luxury celebrity → Maybelline (Miley Cyrus)
+  lucid:    { brand: "Maybelline",      s3Url: `${S3}/Maybelline+New+York+Serum+Lipstick+TV+Spot+Endless+Possibilities+Featuring+Miley+Cyrus+-+iSpot.mp4`, cpm: 50 },
+  // Performance premium European → Oakley Athletic Intelligence
+  bmw:      { brand: "Oakley",          s3Url: `${S3}/Oakley+TV+Spot+Athletic+Intelligence+Is+Here+Featuring+Kylian+Mbapp+Mark+Cavendish+-+iSpot.mp4`, cpm: 38 },
+  // Adventure/outdoor — exact Rivian brand match
+  rivian:   { brand: "Rivian",          s3Url: `${S3}/Real+Rivian+Adventures+%EF%BD%9C+Saving+Summer.mp4`, cpm: 32 },
+  // Wellness-focused luxury → Planet Fitness
+  genesis:  { brand: "Planet Fitness",  s3Url: `${S3}/Planet+Fitness+TV+Spot+Finish+Strong+-+iSpot.mp4`, cpm: 22 },
+  // American premium icons → Nike (LeBron, Saquon, Scheffler)
+  cadillac: { brand: "Nike",            s3Url: `${S3}/Nike+TV+Spot+Why+Do+It+Featuring+Saquon+Barkley+LeBron+James+Scottie+Scheffler+-+iSpot.mp4`, cpm: 48 },
+  // Cinematic sophistication → XFINITY Jurassic Park (Jeff Goldblum)
+  jaguar:   { brand: "XFINITY",         s3Url: `${S3}/XFINITY+TV+Spot+Jurassic+Park+Ecosystem+Featuring+Jeff+Goldblum+Sam+Neill+Laura+Dern+-+iSpot.mp4`, cpm: 40 },
+  // Modern urban Scandinavian → T-Mobile (Zoe Saldaña, Harvey Guillén)
+  polestar: { brand: "T-Mobile",        s3Url: `${S3}/T-Mobile+TV+Spot+Group+Photo+iPhone+17+15-Minute+Switch+Featuring+Harvey+Guilln+Zoe+Saldaa+Druski+-+iSpot.mp4`, cpm: 30 },
+  // Family safety, home-focused → Rocket + Redfin
+  volvo:    { brand: "Rocket + Redfin", s3Url: `${S3}/Rocket+%2B+Redfin.+Your+journey+home+just+got+an+upgrade..mp4`, cpm: 35 },
 };
 
 const FALLBACK = {
-  brand: "Premium Brand",
-  s3Url: "https://videoev.s3.us-east-1.amazonaws.com/fallback-30s.mp4",
+  brand: "Amazon",
+  s3Url: `${S3}/Amazon+TV+Spot+Train+Robbery+-+iSpot.mp4`,
   cpm: 18,
 };
 

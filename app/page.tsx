@@ -27,14 +27,16 @@ const AGENT_LOG_TEMPLATES = [
 ];
 
 const AD_CPM: Record<string, { brand: string; cpm: number }> = {
-  tesla: { brand: "Bang & Olufsen", cpm: 38 },
-  porsche: { brand: "Rolex", cpm: 42 },
-  rivian: { brand: "Patagonia", cpm: 28 },
-  bmw: { brand: "BMW", cpm: 35 },
-  lucid: { brand: "Hermès", cpm: 55 },
-  volvo: { brand: "NetJets", cpm: 48 },
-  jaguar: { brand: "Macallan", cpm: 40 },
-  cadillac: { brand: "Saks", cpm: 30 },
+  tesla:    { brand: "Apple",           cpm: 42 },
+  porsche:  { brand: "Capital One",     cpm: 45 },
+  rivian:   { brand: "Rivian",          cpm: 32 },
+  bmw:      { brand: "Oakley",          cpm: 38 },
+  lucid:    { brand: "Maybelline",      cpm: 50 },
+  volvo:    { brand: "Rocket + Redfin", cpm: 35 },
+  jaguar:   { brand: "XFINITY",         cpm: 40 },
+  cadillac: { brand: "Nike",            cpm: 48 },
+  polestar: { brand: "T-Mobile",        cpm: 30 },
+  genesis:  { brand: "Planet Fitness",  cpm: 22 },
 };
 
 export default function KioskPage() {
