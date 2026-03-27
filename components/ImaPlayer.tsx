@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 interface Props {
   src: string; // direct S3 .mp4 URL or VAST endpoint
   onEnded?: () => void;
+  loop?: boolean;
 }
 
 async function resolveVideoSrc(src: string): Promise<string> {
@@ -19,7 +20,7 @@ async function resolveVideoSrc(src: string): Promise<string> {
   }
 }
 
-export default function VideoAd({ src, onEnded }: Props) {
+export default function VideoAd({ src, onEnded, loop = false }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -39,6 +40,7 @@ export default function VideoAd({ src, onEnded }: Props) {
         className="w-full h-full object-cover"
         playsInline
         autoPlay
+        loop={loop}
         onEnded={onEnded}
       />
     </div>
