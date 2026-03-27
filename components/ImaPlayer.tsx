@@ -1,55 +1,45 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
-interface ImaPlayerProps {
-  adTagUrl: string;
-  onAdEvent?: (type: string) => void;
+interface Props {
+  src: string; // direct S3 .mp4 URL or VAST endpoint
+  onEnded?: () => void;
 }
 
-async function resolveVideoUrl(adTagUrl: string): Promise<string | null> {
+async function resolveVideoSrc(src: string): Promise<string> {
+  if (src.includes(".mp4")) return src;
   try {
-    const res = await fetch(adTagUrl);
+    const res = await fetch(src);
     const xml = await res.text();
     const doc = new DOMParser().parseFromString(xml, "text/xml");
-    const url = doc.querySelector("MediaFile")?.textContent?.trim() ?? null;
-    return url;
+    return doc.querySelector("MediaFile")?.textContent?.trim() ?? "";
   } catch {
-    return null;
+    return "";
   }
 }
 
-export default function ImaPlayer({ adTagUrl, onAdEvent }: ImaPlayerProps) {
+export default function VideoAd({ src, onEnded }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [src, setSrc] = useState<string | null>(null);
 
   useEffect(() => {
-    setSrc(null);
-    resolveVideoUrl(adTagUrl).then((url) => {
-      if (url) setSrc(url);
+    let cancelled = false;
+    resolveVideoSrc(src).then((url) => {
+      if (cancelled || !url || !videoRef.current) return;
+      videoRef.current.src = url;
+      videoRef.current.play().catch(() => {});
     });
-  }, [adTagUrl]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !src) return;
-    video.src = src;
-    video.play().catch(() => {});
-
-    const onEnded = () => onAdEvent?.("complete");
-    video.addEventListener("ended", onEnded);
-    return () => video.removeEventListener("ended", onEnded);
-  }, [src, onAdEvent]);
+    return () => { cancelled = true; };
+  }, [src]);
 
   return (
-    <div className="relative w-full h-full bg-black overflow-hidden">
+    <div className="w-full h-full bg-black overflow-hidden">
       <video
         ref={videoRef}
         className="w-full h-full object-cover"
         playsInline
-        muted
         autoPlay
-        loop
+        onEnded={onEnded}
       />
     </div>
   );
