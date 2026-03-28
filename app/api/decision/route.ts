@@ -11,6 +11,8 @@ const AD_MAP: Record<string, { brand: string; s3Url: string; cpm: number }> = {
   lucid:    { brand: "Maybelline",      s3Url: `${S3}/Maybelline+New+York+Serum+Lipstick+TV+Spot+Endless+Possibilities+Featuring+Miley+Cyrus+-+iSpot.mp4`, cpm: 50 },
   // Performance premium European → Oakley Athletic Intelligence
   bmw:      { brand: "Oakley",          s3Url: `${S3}/Oakley+TV+Spot+Athletic+Intelligence+Is+Here+Featuring+Kylian+Mbapp+Mark+Cavendish+-+iSpot.mp4`, cpm: 38 },
+  // Mainstream American — Ford F-150/Bronco buyer → Nike
+  ford:     { brand: "Nike",            s3Url: `${S3}/Nike+TV+Spot+Why+Do+It+Featuring+Saquon+Barkley+LeBron+James+Scottie+Scheffler+-+iSpot.mp4`, cpm: 34 },
   // Adventure/outdoor — exact Rivian brand match
   rivian:   { brand: "Rivian",          s3Url: `${S3}/Real+Rivian+Adventures+%EF%BD%9C+Saving+Summer.mp4`, cpm: 32 },
   // Wellness-focused luxury → Planet Fitness
@@ -34,15 +36,20 @@ const FALLBACK = {
 function buildVAST(videoUrl: string, brand: string, cpm: number): string {
   const base = "https://ads.videoev.com/api/track";
   const b = encodeURIComponent(brand);
+  // Stable dummy ad ID derived from brand slug (no spaces, lowercase)
+  const brandSlug = brand.toLowerCase().replace(/[^a-z0-9]/g, "-");
+  const universalId = `videoev-${brandSlug}-001`;
   return `<?xml version="1.0" encoding="UTF-8"?>
 <VAST version="4.0" xmlns:xs="http://www.w3.org/2001/XMLSchema">
   <Ad id="videoev-${Date.now()}" sequence="1">
     <InLine>
       <AdSystem version="1.0">VideoEV AdCP</AdSystem>
       <AdTitle>${brand} — VideoEV Network</AdTitle>
+      <Error><![CDATA[${base}?event=error&code=[ERRORCODE]&brand=${b}]]></Error>
       <Impression id="imp1"><![CDATA[${base}?event=impression&brand=${b}&cpm=${cpm}]]></Impression>
       <Creatives>
         <Creative id="1" sequence="1">
+          <UniversalAdId idRegistry="VideoEV">${universalId}</UniversalAdId>
           <Linear>
             <Duration>00:00:30</Duration>
             <TrackingEvents>
