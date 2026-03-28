@@ -105,6 +105,9 @@ export default function KioskPage() {
   const [carMake, setCarMake] = useState("porsche");
   const [locationCtx, setLocationCtx] = useState<"highway" | "school">("highway");
   const [batteryCtx, setBatteryCtx] = useState<"80" | "15">("80");
+  const [venueCtx, setVenueCtx] = useState<"luxury_retail" | "grocery" | "highway_rest">("luxury_retail");
+  const [msrpCtx, setMsrpCtx] = useState<"120k+" | "80k-120k">("120k+");
+  const [dwellCtx, setDwellCtx] = useState<"45" | "15">("45");
   const [terminalLines, setTerminalLines] = useState<string[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const terminalTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -137,9 +140,11 @@ export default function KioskPage() {
   useEffect(() => {
     terminalTimers.current.forEach(clearTimeout);
     setTerminalLines([]);
+    const venueLabel = venueCtx === "luxury_retail" ? "Luxury Retail" : venueCtx === "grocery" ? "Grocery" : "Highway Rest Stop";
     const lines: string[] = [
       `[VideoEV] Handshake complete · Charger 03`,
       `[VideoEV] Vehicle fingerprint acquired: ${carMake}`,
+      `[OCPP] MSRP Proxy: $${msrpCtx} | Dwell: ${dwellCtx} mins | Venue: ${venueLabel}`,
     ];
     if (locationCtx === "school") {
       lines.push(`[BRAND SAFETY] School zone detected. Restricting mature categories.`);
@@ -153,7 +158,7 @@ export default function KioskPage() {
       setTimeout(() => setTerminalLines(prev => [...prev, line]), (i + 1) * 500)
     );
     return () => terminalTimers.current.forEach(clearTimeout);
-  }, [carMake, locationCtx, batteryCtx]);
+  }, [carMake, locationCtx, batteryCtx, venueCtx, msrpCtx, dwellCtx]);
 
   // Auto-scroll terminal
   useEffect(() => {
@@ -481,7 +486,7 @@ export default function KioskPage() {
           </div>
 
           {/* Context controls */}
-          <div className="flex gap-2 mb-3">
+          <div className="flex gap-2 mb-2">
             <div className="flex-1">
               <span className="eyebrow text-slate-500 block mb-1">Location</span>
               <select
@@ -502,6 +507,42 @@ export default function KioskPage() {
               >
                 <option value="80">80%</option>
                 <option value="15">15%</option>
+              </select>
+            </div>
+          </div>
+          <div className="mb-2">
+            <span className="eyebrow text-slate-500 block mb-1">Venue Type</span>
+            <select
+              value={venueCtx}
+              onChange={e => setVenueCtx(e.target.value as "luxury_retail" | "grocery" | "highway_rest")}
+              className="w-full bg-slate-800 text-slate-300 text-xs rounded px-2 py-1.5 border border-slate-700 focus:outline-none"
+            >
+              <option value="luxury_retail">Luxury Retail</option>
+              <option value="grocery">Grocery</option>
+              <option value="highway_rest">Highway</option>
+            </select>
+          </div>
+          <div className="flex gap-2 mb-3">
+            <div className="flex-1">
+              <span className="eyebrow text-slate-500 block mb-1">MSRP Proxy</span>
+              <select
+                value={msrpCtx}
+                onChange={e => setMsrpCtx(e.target.value as "120k+" | "80k-120k")}
+                className="w-full bg-slate-800 text-slate-300 text-xs rounded px-2 py-1.5 border border-slate-700 focus:outline-none"
+              >
+                <option value="120k+">$120k+</option>
+                <option value="80k-120k">$80k–$120k</option>
+              </select>
+            </div>
+            <div className="flex-1">
+              <span className="eyebrow text-slate-500 block mb-1">Est. Dwell</span>
+              <select
+                value={dwellCtx}
+                onChange={e => setDwellCtx(e.target.value as "45" | "15")}
+                className="w-full bg-slate-800 text-slate-300 text-xs rounded px-2 py-1.5 border border-slate-700 focus:outline-none"
+              >
+                <option value="45">45 mins</option>
+                <option value="15">15 mins</option>
               </select>
             </div>
           </div>
@@ -551,6 +592,7 @@ export default function KioskPage() {
                 <p key={i} className={
                   line.startsWith("[BRAND SAFETY]") ? "text-orange-400" :
                   line.startsWith("[CONTEXT]") ? "text-yellow-400" :
+                  line.startsWith("[OCPP]") ? "text-sky-400" :
                   line.includes("Bid won") ? "text-teal-400" :
                   "text-slate-500"
                 }>{line}</p>
@@ -574,7 +616,7 @@ export default function KioskPage() {
 
           <div className="flex-1 overflow-hidden min-h-0 bg-black">
             {adPhase === "warmup" && (
-              <VideoAd key={`${carMake}-${locationCtx}-${batteryCtx}`} src={`/api/decision?car_make=${carMake}&location=${locationCtx}&battery=${batteryCtx}`} loop />
+              <VideoAd key={`${carMake}-${locationCtx}-${batteryCtx}-${venueCtx}-${msrpCtx}-${dwellCtx}`} src={`/api/decision?car_make=${carMake}&location=${locationCtx}&battery=${batteryCtx}&venue=${venueCtx}&msrp=${msrpCtx}&dwell=${dwellCtx}`} loop />
             )}
 
             {adPhase === "display" && (

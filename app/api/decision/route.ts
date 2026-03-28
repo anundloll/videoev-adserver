@@ -49,7 +49,7 @@ const LOW_BATTERY_AD = {
   cpm: 28,
 };
 
-function buildVAST(videoUrl: string, brand: string, cpm: number): string {
+function buildVAST(videoUrl: string, brand: string, cpm: number, ctx: { venue: string; msrp: string; dwell: string }): string {
   const base = "https://ads.videoev.com/api/track";
   const b = encodeURIComponent(brand);
   // Stable dummy ad ID derived from brand slug (no spaces, lowercase)
@@ -89,6 +89,9 @@ function buildVAST(videoUrl: string, brand: string, cpm: number): string {
           <Brand>${brand}</Brand>
           <CPM>${cpm}</CPM>
           <Network>VideoEV AdCP</Network>
+          <VenueType>${ctx.venue}</VenueType>
+          <MSRPProxy>${ctx.msrp}</MSRPProxy>
+          <EstDwellTime>${ctx.dwell} mins</EstDwellTime>
         </Extension>
       </Extensions>
     </InLine>
@@ -101,12 +104,16 @@ export async function GET(req: NextRequest) {
   const carMake  = searchParams.get("car_make")?.toLowerCase() ?? "";
   const location = searchParams.get("location")?.toLowerCase() ?? "highway";
   const battery  = searchParams.get("battery") ?? "80";
+  const venue    = searchParams.get("venue") ?? "luxury_retail";
+  const msrp     = searchParams.get("msrp") ?? "120k+";
+  const dwell    = searchParams.get("dwell") ?? "45";
+  const ctx = { venue, msrp, dwell };
 
   // ── Rule 1: Brand Safety ────────────────────────────────────────────────────
   // School zone overrides all — serve family-friendly creative regardless of vehicle
   if (location === "school") {
     console.log(`[AdCP Rules] BRAND SAFETY — school zone detected. Overriding to ${SCHOOL_ZONE_AD.brand}.`);
-    return new NextResponse(buildVAST(SCHOOL_ZONE_AD.s3Url, SCHOOL_ZONE_AD.brand, SCHOOL_ZONE_AD.cpm), {
+    return new NextResponse(buildVAST(SCHOOL_ZONE_AD.s3Url, SCHOOL_ZONE_AD.brand, SCHOOL_ZONE_AD.cpm, ctx), {
       status: 200,
       headers: { "Content-Type": "text/xml; charset=utf-8", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" },
     });
@@ -116,7 +123,7 @@ export async function GET(req: NextRequest) {
   // Low battery → driver is anxious and waiting → QSR/food intent spike
   if (battery === "15") {
     console.log(`[AdCP Rules] CONTEXT — low battery signal. Overriding to ${LOW_BATTERY_AD.brand}.`);
-    return new NextResponse(buildVAST(LOW_BATTERY_AD.s3Url, LOW_BATTERY_AD.brand, LOW_BATTERY_AD.cpm), {
+    return new NextResponse(buildVAST(LOW_BATTERY_AD.s3Url, LOW_BATTERY_AD.brand, LOW_BATTERY_AD.cpm, ctx), {
       status: 200,
       headers: { "Content-Type": "text/xml; charset=utf-8", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" },
     });
@@ -129,9 +136,9 @@ export async function GET(req: NextRequest) {
     return FALLBACK;
   })();
 
-  console.log(`[AdCP Decision] car_make=${carMake} → brand=${ad.brand} CPM=$${ad.cpm}`);
+  console.log(`[AdCP Decision] car_make=${carMake} → brand=${ad.brand} CPM=$${ad.cpm} venue=${venue} msrp=${msrp} dwell=${dwell}`);
 
-  return new NextResponse(buildVAST(ad.s3Url, ad.brand, ad.cpm), {
+  return new NextResponse(buildVAST(ad.s3Url, ad.brand, ad.cpm, ctx), {
     status: 200,
     headers: {
       "Content-Type": "text/xml; charset=utf-8",
