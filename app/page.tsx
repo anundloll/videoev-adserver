@@ -385,9 +385,9 @@ export default function KioskPage() {
           <span className="text-sm text-slate-400">{clock}</span>
         </div>
 
-        <div className="flex flex-1 overflow-hidden min-h-0">
+        <div className="flex flex-col lg:flex-row flex-1 overflow-hidden min-h-0">
           {/* Left: summary */}
-          <div className="flex flex-col items-center justify-center w-1/3 shrink-0 px-6 bg-gradient-to-b from-blue-50 to-white overflow-hidden">
+          <div className="flex flex-col items-center justify-center w-full lg:w-1/3 shrink-0 px-6 py-5 lg:py-0 max-h-[45vh] lg:max-h-none bg-gradient-to-b from-blue-50 to-white overflow-auto" style={{ scrollbarWidth: "none" } as any}>
             <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center mb-5">
               <svg viewBox="0 0 24 24" className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
             </div>
@@ -396,11 +396,11 @@ export default function KioskPage() {
             <div className="flex gap-8 mb-7">
               <div>
                 <p className="text-slate-400 text-xs mb-0.5">Charging Time</p>
-                <p className="text-slate-800 text-3xl font-bold num">{sessionMin} min</p>
+                <p className="text-slate-800 text-2xl lg:text-3xl font-bold num">{sessionMin} min</p>
               </div>
               <div className="text-right">
                 <p className="text-slate-400 text-xs mb-0.5">Energy Delivered</p>
-                <p className="text-slate-800 text-3xl font-bold num">{kwh.toFixed(4)} kWh</p>
+                <p className="text-slate-800 text-2xl lg:text-3xl font-bold num">{kwh.toFixed(4)} kWh</p>
               </div>
             </div>
             <div className="flex gap-6 mb-7">
@@ -422,7 +422,7 @@ export default function KioskPage() {
           </div>
 
           {/* Right: completion video ad */}
-          <div className="flex-1 bg-black flex flex-col">
+          <div className="flex-1 min-h-0 bg-black flex flex-col">
             <div className="px-4 py-2 bg-slate-900 flex items-center justify-between shrink-0">
               <span className="eyebrow text-slate-500">Sponsored · {completionVideoAd[1]}</span>
               <span className="text-slate-500 text-xs">${completionVideoAd[2]} CPM</span>
@@ -448,10 +448,11 @@ export default function KioskPage() {
   // ─── CHARGING ─────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-900">
-      <div className="flex flex-1 overflow-hidden min-h-0">
+      <div className="flex flex-col lg:flex-row flex-1 overflow-hidden min-h-0">
 
         {/* Left sidebar */}
-        <aside className="w-72 shrink-0 bg-slate-950 border-r border-slate-800 flex flex-col p-5 overflow-y-auto" style={{ scrollbarWidth: "none" }}>
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <aside className="w-full lg:w-72 shrink-0 bg-slate-950 border-b lg:border-b-0 lg:border-r border-slate-800 flex flex-col p-4 lg:p-5 overflow-y-auto order-2 lg:order-1 max-h-[40vh] lg:max-h-none" style={{ scrollbarWidth: "none" } as any}>
           <p className="eyebrow text-slate-500 mb-2">Charging Status</p>
 
           {/* Car selector */}
@@ -528,7 +529,7 @@ export default function KioskPage() {
         </aside>
 
         {/* Right: ad zone */}
-        <main className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <main className="flex-1 flex flex-col overflow-hidden min-w-0 order-1 lg:order-2">
           <div className="flex items-center justify-between px-5 py-2.5 border-b border-slate-800 shrink-0">
             <span className="eyebrow text-slate-500">
               {vehicle.label} · {isVideoPhase ? `Video — ${currentVideoAd[1]}` : adPhase === "warmup" ? "Session Started" : `Display — ${displayAd.brand}`}
@@ -548,8 +549,8 @@ export default function KioskPage() {
                 style={{ background: `linear-gradient(135deg, ${displayAd.from}, ${displayAd.to})` }}
               >
                 <p className="text-white/50 eyebrow mb-4">Sponsored</p>
-                <h2 className="text-7xl font-bold text-white mb-4 text-center px-8">{displayAd.brand}</h2>
-                <p className="text-white/75 text-2xl text-center px-8">{displayAd.tagline}</p>
+                <h2 className="text-4xl lg:text-7xl font-bold text-white mb-4 text-center px-8">{displayAd.brand}</h2>
+                <p className="text-white/75 text-lg lg:text-2xl text-center px-8">{displayAd.tagline}</p>
                 <div className="absolute bottom-5 right-5 bg-black/25 backdrop-blur rounded-full px-3 py-1 text-white/50 text-xs">${displayAd.cpm} CPM</div>
                 <div className="absolute top-5 right-5 text-white/30 text-xl font-bold">Video<span className="text-white/50">EV</span></div>
               </div>
@@ -563,15 +564,15 @@ export default function KioskPage() {
       </div>
 
       {/* Bottom bar */}
-      <footer className="h-11 shrink-0 bg-slate-950 border-t border-slate-800 flex items-center justify-between px-5">
-        <div className="flex items-center gap-2 text-sm">
+      <footer className="h-11 shrink-0 bg-slate-950 border-t border-slate-800 flex items-center justify-between px-4 lg:px-5">
+        <div className="flex items-center gap-2 text-xs lg:text-sm min-w-0">
           <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse shrink-0" />
-          <span className="text-slate-300">Charging in progress · {vehicle.label}</span>
+          <span className="text-slate-300 truncate">Charging · {vehicle.label}</span>
         </div>
-        <div className="flex items-center gap-3 text-sm text-slate-400 num">
-          <span>{Math.round(battery)}% battery</span>
+        <div className="flex items-center gap-2 lg:gap-3 text-xs lg:text-sm text-slate-400 num shrink-0">
+          <span>{Math.round(battery)}%</span>
           <span className="text-slate-700">·</span>
-          <span>{remaining} min remaining</span>
+          <span>{remaining} min</span>
         </div>
       </footer>
     </div>
