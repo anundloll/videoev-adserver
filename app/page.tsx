@@ -202,7 +202,7 @@ export default function KioskPage() {
         className="h-screen w-screen bg-slate-950 flex flex-col items-center justify-center cursor-pointer select-none"
         onClick={() => setStage("connect")}
       >
-        <img src="/videoev-icon.svg" alt="VideoEV" className="w-28 h-28 mb-6 drop-shadow-2xl" />
+        <img src="/videoev-icon-clear.svg" alt="VideoEV" className="w-28 h-28 mb-6 drop-shadow-2xl" />
         <h1 className="text-4xl font-bold text-white mb-3">Video<span className="text-teal-400">EV</span></h1>
         <p className="text-slate-400 text-lg">Tap anywhere to start demo</p>
         <div className="absolute bottom-8 left-0 right-0 flex justify-center">
