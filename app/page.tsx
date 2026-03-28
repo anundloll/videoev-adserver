@@ -7,7 +7,7 @@ const VideoAd = dynamic(() => import("@/components/ImaPlayer"), { ssr: false });
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type Stage = "start" | "connect" | "auth" | "initiating" | "charging" | "complete";
+type Stage = "start" | "connect" | "auth" | "initiating" | "starting" | "charging" | "complete";
 type AdPhase = "warmup" | "display" | "video_1" | "video_2";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
@@ -130,9 +130,10 @@ export default function KioskPage() {
   // Stage auto-advance
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
-    if (stage === "connect")    timers.push(setTimeout(() => setStage("auth"), 5000));
-    if (stage === "auth")       timers.push(setTimeout(() => setStage("initiating"), 4000));
-    if (stage === "initiating") timers.push(setTimeout(() => { setStage("charging"); setAdPhase("warmup"); }, 8000));
+    if (stage === "connect")    timers.push(setTimeout(() => setStage("auth"),       30000));
+    if (stage === "auth")       timers.push(setTimeout(() => setStage("initiating"), 20000));
+    if (stage === "initiating") timers.push(setTimeout(() => setStage("starting"),   30000));
+    if (stage === "starting")   timers.push(setTimeout(() => { setStage("charging"); setAdPhase("warmup"); }, 3000));
     return () => timers.forEach(clearTimeout);
   }, [stage]);
 
@@ -311,6 +312,33 @@ export default function KioskPage() {
           stepIndex={2}
           statusLine="Initiating charge — this will take just a moment…"
         />
+      </div>
+    );
+  }
+
+  // ─── STARTING (transition) ────────────────────────────────────────────────
+  if (stage === "starting") {
+    return (
+      <div
+        className="h-screen w-screen flex flex-col items-center justify-center bg-slate-950"
+        style={{ animation: "fadeIn 0.6s ease-out" }}
+      >
+        <style>{`@keyframes fadeIn { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: scale(1); } }`}</style>
+        <div className="w-20 h-20 rounded-full bg-teal-400/15 flex items-center justify-center mb-6">
+          <svg viewBox="0 0 24 24" className="w-10 h-10 text-teal-400" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </div>
+        <h2 className="text-4xl font-bold text-white mb-2">Charging Started</h2>
+        <p className="text-slate-400 text-lg mb-8">{vehicle.label} · Starting at {vehicle.start}%</p>
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
+          <span className="text-teal-400 text-sm font-medium">Power flowing — ${vehicle.rate}/kWh</span>
+        </div>
+        <div className="absolute bottom-6 flex items-center gap-2 text-slate-700 text-xs">
+          <img src="/videoev-icon.svg" alt="VideoEV" className="w-5 h-5 opacity-40" />
+          <span>VideoEV · Charger 03</span>
+        </div>
       </div>
     );
   }
