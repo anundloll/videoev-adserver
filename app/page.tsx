@@ -222,33 +222,35 @@ export default function KioskPage() {
     );
   }
 
+  // Shared bottom bar for pre-charge stages
+  const PreChargeBar = ({ left, right }: { left: React.ReactNode; right?: React.ReactNode }) => (
+    <div className="absolute bottom-0 left-0 right-0 z-30 flex items-center justify-between px-6 py-4"
+      style={{ background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)" }}>
+      <div className="flex items-center gap-3">
+        <img src="/videoev-icon.svg" alt="VideoEV" className="w-8 h-8" />
+        <div>{left}</div>
+      </div>
+      <div className="text-right text-white/50 text-xs">
+        {right}
+        <div>{clock} · Charger 03</div>
+        <div>{videoAds[0][1]} · ${videoAds[0][2]} CPM</div>
+      </div>
+    </div>
+  );
+
   // ─── CONNECT ──────────────────────────────────────────────────────────────
   if (stage === "connect") {
     return (
       <div className="h-screen w-screen relative overflow-hidden bg-black">
-        {/* Full-screen video ad plays immediately on vehicle connect */}
         <div className="absolute inset-0">
           <VideoAd key={vehicle.make} src={videoAds[0][0]} loop />
         </div>
-        <div className="absolute inset-0 bg-black/55" />
-        {/* Stage overlay */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <div className="relative flex items-center justify-center mb-8">
-            <div className="w-36 h-36 rounded-full border border-teal-400/20 animate-ping absolute" />
-            <div className="w-24 h-24 rounded-full border border-teal-400/50 animate-pulse absolute" />
-            <img src="/videoev-icon.svg" alt="VideoEV" className="w-16 h-16 relative z-10" />
-          </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Vehicle Connected</h1>
-          <p className="text-slate-300 text-lg mb-1">{vehicle.label}</p>
-          <p className="text-slate-400 text-sm">Preparing payment authorization…</p>
-        </div>
-        <div className="absolute top-4 left-6 text-white/40 text-xs">Charger 03 · Station ID 110040-03</div>
-        <div className="absolute top-4 right-6 text-white/40 text-xs">{clock}</div>
-        <div className="absolute bottom-4 right-6 text-white/30 text-xs">1-833-632-2778 · VideoEV Network</div>
-        {/* Ad label */}
-        <div className="absolute bottom-4 left-6 bg-black/40 backdrop-blur rounded-full px-3 py-1 text-white/50 text-xs">
-          {videoAds[0][1]} · ${videoAds[0][2]} CPM
-        </div>
+        <PreChargeBar
+          left={<>
+            <p className="text-white font-semibold text-sm">Vehicle Connected</p>
+            <p className="text-white/60 text-xs">{vehicle.label} · Preparing authorization…</p>
+          </>}
+        />
       </div>
     );
   }
@@ -256,26 +258,21 @@ export default function KioskPage() {
   // ─── AUTH ─────────────────────────────────────────────────────────────────
   if (stage === "auth") {
     return (
-      <div className="h-screen w-screen relative overflow-hidden">
-        {/* Video continues playing */}
+      <div className="h-screen w-screen relative overflow-hidden bg-black">
         <div className="absolute inset-0">
           <VideoAd key={vehicle.make} src={videoAds[0][0]} loop />
         </div>
-        <div className="absolute inset-0 bg-black/50" />
-        {/* Auth overlay card */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <div
-            className="relative w-52 h-52 rounded-2xl flex flex-col items-center justify-center shadow-2xl"
-            style={{ background: "linear-gradient(145deg, rgba(30,58,95,0.95), rgba(15,32,64,0.95))", backdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.15)" }}
-          >
-            <svg viewBox="0 0 24 24" className="w-16 h-16 text-white mb-3" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-            <span className="text-teal-400 font-bold text-xl tracking-widest">Authorized</span>
-          </div>
-        </div>
-        <div className="absolute top-4 left-6 text-white/40 text-sm font-medium">Charger 03 · 1-833-632-2778</div>
-        <div className="absolute top-4 right-6 text-white/40 text-sm">{clock}</div>
+        <PreChargeBar
+          left={<>
+            <div className="flex items-center gap-2">
+              <svg viewBox="0 0 24 24" className="w-4 h-4 text-teal-400 shrink-0" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <p className="text-teal-400 font-semibold text-sm">Payment Authorized</p>
+            </div>
+            <p className="text-white/60 text-xs">{vehicle.label}</p>
+          </>}
+        />
       </div>
     );
   }
@@ -283,31 +280,19 @@ export default function KioskPage() {
   // ─── INITIATING ───────────────────────────────────────────────────────────
   if (stage === "initiating") {
     return (
-      <div className="h-screen w-screen relative overflow-hidden">
-        {/* Video continues playing */}
+      <div className="h-screen w-screen relative overflow-hidden bg-black">
         <div className="absolute inset-0">
           <VideoAd key={vehicle.make} src={videoAds[0][0]} loop />
         </div>
-        <div className="absolute inset-0 bg-black/60" />
-        {/* Glowing horizontal lines */}
-        <div className="absolute w-full pointer-events-none z-10" style={{ top: "49%", height: 3, background: "linear-gradient(90deg, transparent, #ff2d8a 25%, #ff80c0 50%, #ff2d8a 75%, transparent)", filter: "blur(1px)" }} />
-        <div className="absolute w-full pointer-events-none z-10" style={{ top: "51%", height: 2, background: "linear-gradient(90deg, transparent 10%, #cc0066 35%, #ff1177 50%, #cc0066 65%, transparent 90%)", filter: "blur(3px)", opacity: 0.6 }} />
-        {/* Spinner card */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center z-20">
-          <div
-            className="w-52 h-52 rounded-2xl flex flex-col items-center justify-center shadow-2xl"
-            style={{ background: "rgba(10, 20, 50, 0.85)", backdropFilter: "blur(16px)", border: "1px solid rgba(100,150,255,0.2)" }}
-          >
-            <div className="relative w-20 h-20 mb-4">
-              <div className="absolute inset-0 rounded-full border-4 border-white/20" />
-              <div className="absolute inset-0 rounded-full border-4 border-t-white border-r-white/30 border-b-transparent border-l-transparent animate-spin" style={{ animationDuration: "1s" }} />
-              <div className="absolute inset-2 rounded-full border-2 border-dashed border-white/25 animate-spin" style={{ animationDuration: "3s", animationDirection: "reverse" }} />
+        <PreChargeBar
+          left={<>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded-full border-2 border-t-white border-r-white/30 border-b-transparent border-l-transparent animate-spin shrink-0" />
+              <p className="text-white font-semibold text-sm">Initiating charging…</p>
             </div>
-            <span className="text-white text-base font-medium">Initiating charging</span>
-          </div>
-        </div>
-        <div className="absolute top-4 left-6 text-white/30 text-xs z-30">Balanced Charger · 1-833-632-2778 · Charger ID110040-03</div>
-        <div className="absolute top-4 right-6 text-white/30 text-xs z-30">{clock}</div>
+            <p className="text-white/60 text-xs">{vehicle.label}</p>
+          </>}
+        />
       </div>
     );
   }
