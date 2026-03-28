@@ -33,6 +33,22 @@ const FALLBACK = {
   cpm: 18,
 };
 
+// ─── Contextual override creatives ───────────────────────────────────────────
+
+// Brand safety: family-friendly, suitable near schools
+const SCHOOL_ZONE_AD = {
+  brand: "Instacart",
+  s3Url: `${S3}/Instacart+Super+Bowl+2026+TV+Spot+Bananas+Featuring+Benson+Boone+Ben+Stiller+-+iSpot.mp4`,
+  cpm: 20,
+};
+
+// Contextual intent: driver is low on battery → hungry, wants food fast
+const LOW_BATTERY_AD = {
+  brand: "Uber Eats",
+  s3Url: `${S3}/Uber+Eats+TV+Spot+Passion+Fruit+Song+by+Aerosmith+-+iSpot.mp4`,
+  cpm: 28,
+};
+
 function buildVAST(videoUrl: string, brand: string, cpm: number): string {
   const base = "https://ads.videoev.com/api/track";
   const b = encodeURIComponent(brand);
@@ -81,8 +97,32 @@ function buildVAST(videoUrl: string, brand: string, cpm: number): string {
 }
 
 export async function GET(req: NextRequest) {
-  const carMake = req.nextUrl.searchParams.get("car_make")?.toLowerCase() ?? "";
+  const { searchParams } = req.nextUrl;
+  const carMake  = searchParams.get("car_make")?.toLowerCase() ?? "";
+  const location = searchParams.get("location")?.toLowerCase() ?? "highway";
+  const battery  = searchParams.get("battery") ?? "80";
 
+  // ── Rule 1: Brand Safety ────────────────────────────────────────────────────
+  // School zone overrides all — serve family-friendly creative regardless of vehicle
+  if (location === "school") {
+    console.log(`[AdCP Rules] BRAND SAFETY — school zone detected. Overriding to ${SCHOOL_ZONE_AD.brand}.`);
+    return new NextResponse(buildVAST(SCHOOL_ZONE_AD.s3Url, SCHOOL_ZONE_AD.brand, SCHOOL_ZONE_AD.cpm), {
+      status: 200,
+      headers: { "Content-Type": "text/xml; charset=utf-8", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" },
+    });
+  }
+
+  // ── Rule 2: Contextual Intent ───────────────────────────────────────────────
+  // Low battery → driver is anxious and waiting → QSR/food intent spike
+  if (battery === "15") {
+    console.log(`[AdCP Rules] CONTEXT — low battery signal. Overriding to ${LOW_BATTERY_AD.brand}.`);
+    return new NextResponse(buildVAST(LOW_BATTERY_AD.s3Url, LOW_BATTERY_AD.brand, LOW_BATTERY_AD.cpm), {
+      status: 200,
+      headers: { "Content-Type": "text/xml; charset=utf-8", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" },
+    });
+  }
+
+  // ── Default: Vehicle-based targeting ───────────────────────────────────────
   const ad = AD_MAP[carMake] ?? (() => {
     console.log(`[AdCP Agent] No direct match for "${carMake}" — running bid auction...`);
     console.log(`[AdCP Agent] Evaluating 12 DSPs... highest bid: $${FALLBACK.cpm} CPM from ${FALLBACK.brand}`);

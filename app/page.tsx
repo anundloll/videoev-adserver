@@ -103,6 +103,8 @@ export default function KioskPage() {
   const [hit2, setHit2] = useState(false);
   const [completionStarted, setCompletionStarted] = useState(false);
   const [carMake, setCarMake] = useState("porsche");
+  const [locationCtx, setLocationCtx] = useState<"highway" | "school">("highway");
+  const [batteryCtx, setBatteryCtx] = useState<"80" | "15">("80");
   const [terminalLines, setTerminalLines] = useState<string[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const terminalTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -135,17 +137,23 @@ export default function KioskPage() {
   useEffect(() => {
     terminalTimers.current.forEach(clearTimeout);
     setTerminalLines([]);
-    const lines = [
+    const lines: string[] = [
       `[VideoEV] Handshake complete · Charger 03`,
       `[VideoEV] Vehicle fingerprint acquired: ${carMake}`,
-      `[AdCP] Resolving audience profile...`,
-      `[AdCP] Bid won · Serving targeted creative.`,
     ];
+    if (locationCtx === "school") {
+      lines.push(`[BRAND SAFETY] School zone detected. Restricting mature categories.`);
+    }
+    if (batteryCtx === "15") {
+      lines.push(`[CONTEXT] Low battery detected. Prioritizing QSR/Food ads.`);
+    }
+    lines.push(`[AdCP] Resolving audience profile...`);
+    lines.push(`[AdCP] Bid won · Serving targeted creative.`);
     terminalTimers.current = lines.map((line, i) =>
       setTimeout(() => setTerminalLines(prev => [...prev, line]), (i + 1) * 500)
     );
     return () => terminalTimers.current.forEach(clearTimeout);
-  }, [carMake]);
+  }, [carMake, locationCtx, batteryCtx]);
 
   // Auto-scroll terminal
   useEffect(() => {
@@ -472,6 +480,32 @@ export default function KioskPage() {
             ))}
           </div>
 
+          {/* Context controls */}
+          <div className="flex gap-2 mb-3">
+            <div className="flex-1">
+              <span className="eyebrow text-slate-500 block mb-1">Location</span>
+              <select
+                value={locationCtx}
+                onChange={e => setLocationCtx(e.target.value as "highway" | "school")}
+                className="w-full bg-slate-800 text-slate-300 text-xs rounded px-2 py-1.5 border border-slate-700 focus:outline-none"
+              >
+                <option value="highway">Highway</option>
+                <option value="school">School Zone</option>
+              </select>
+            </div>
+            <div className="flex-1">
+              <span className="eyebrow text-slate-500 block mb-1">Battery</span>
+              <select
+                value={batteryCtx}
+                onChange={e => setBatteryCtx(e.target.value as "80" | "15")}
+                className="w-full bg-slate-800 text-slate-300 text-xs rounded px-2 py-1.5 border border-slate-700 focus:outline-none"
+              >
+                <option value="80">80%</option>
+                <option value="15">15%</option>
+              </select>
+            </div>
+          </div>
+
           {/* Battery */}
           <div className="mb-3">
             <span className="eyebrow text-slate-400">Battery Level</span>
@@ -515,7 +549,8 @@ export default function KioskPage() {
               )}
               {terminalLines.map((line, i) => (
                 <p key={i} className={
-                  line.startsWith("[SYSTEM]") ? "text-yellow-400" :
+                  line.startsWith("[BRAND SAFETY]") ? "text-orange-400" :
+                  line.startsWith("[CONTEXT]") ? "text-yellow-400" :
                   line.includes("Bid won") ? "text-teal-400" :
                   "text-slate-500"
                 }>{line}</p>
@@ -539,7 +574,7 @@ export default function KioskPage() {
 
           <div className="flex-1 overflow-hidden min-h-0 bg-black">
             {adPhase === "warmup" && (
-              <VideoAd key={carMake} src={`/api/decision?car_make=${carMake}`} loop />
+              <VideoAd key={`${carMake}-${locationCtx}-${batteryCtx}`} src={`/api/decision?car_make=${carMake}&location=${locationCtx}&battery=${batteryCtx}`} loop />
             )}
 
             {adPhase === "display" && (
