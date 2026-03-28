@@ -223,17 +223,49 @@ export default function KioskPage() {
   }
 
   // Shared bottom bar for pre-charge stages
-  const PreChargeBar = ({ left, right }: { left: React.ReactNode; right?: React.ReactNode }) => (
-    <div className="absolute bottom-0 left-0 right-0 z-30 flex items-center justify-between px-6 py-4"
-      style={{ background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)" }}>
-      <div className="flex items-center gap-3">
-        <img src="/videoev-icon.svg" alt="VideoEV" className="w-8 h-8" />
-        <div>{left}</div>
+  const STEPS = ["Connected", "Authorized", "Starting"];
+  const PreChargeBar = ({ stepIndex, statusLine }: { stepIndex: number; statusLine: string }) => (
+    <div
+      className="absolute bottom-0 left-0 right-0 z-30 px-8 pt-10 pb-5"
+      style={{ background: "linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.6) 60%, transparent 100%)" }}
+    >
+      {/* Step progress */}
+      <div className="flex items-center justify-center mb-3">
+        {STEPS.map((label, i) => (
+          <div key={i} className="flex items-center">
+            <div className="flex flex-col items-center gap-1">
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                i < stepIndex  ? "bg-teal-400 text-black" :
+                i === stepIndex ? "bg-white text-slate-900" :
+                "bg-white/15 text-white/30"
+              }`}>
+                {i < stepIndex
+                  ? <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                  : i + 1}
+              </div>
+              <span className={`text-xs font-medium tracking-wide ${
+                i === stepIndex ? "text-white" :
+                i < stepIndex  ? "text-teal-400" :
+                "text-white/25"
+              }`}>{label}</span>
+            </div>
+            {i < STEPS.length - 1 && (
+              <div className={`w-20 h-px mx-2 mb-4 ${i < stepIndex ? "bg-teal-400" : "bg-white/15"}`} />
+            )}
+          </div>
+        ))}
       </div>
-      <div className="text-right text-white/50 text-xs">
-        {right}
-        <div>{clock} · Charger 03</div>
-        <div>{videoAds[0][1]} · ${videoAds[0][2]} CPM</div>
+
+      {/* Status message */}
+      <p className="text-center text-white/65 text-sm mb-3">{statusLine}</p>
+
+      {/* Footer row */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <img src="/videoev-icon.svg" alt="VideoEV" className="w-6 h-6" />
+          <span className="text-white/40 text-xs font-semibold tracking-wide">VideoEV</span>
+        </div>
+        <div className="text-white/25 text-xs">{clock} · Charger 03</div>
       </div>
     </div>
   );
@@ -243,13 +275,11 @@ export default function KioskPage() {
     return (
       <div className="h-screen w-screen relative overflow-hidden bg-black">
         <div className="absolute inset-0">
-          <VideoAd key={vehicle.make} src={videoAds[0][0]} loop />
+          <VideoAd key={`connect-${vehicle.make}`} src={videoAds[0][0]} loop />
         </div>
         <PreChargeBar
-          left={<>
-            <p className="text-white font-semibold text-sm">Vehicle Connected</p>
-            <p className="text-white/60 text-xs">{vehicle.label} · Preparing authorization…</p>
-          </>}
+          stepIndex={0}
+          statusLine={`${vehicle.label} detected — establishing connection`}
         />
       </div>
     );
@@ -260,18 +290,11 @@ export default function KioskPage() {
     return (
       <div className="h-screen w-screen relative overflow-hidden bg-black">
         <div className="absolute inset-0">
-          <VideoAd key={vehicle.make} src={videoAds[0][0]} loop />
+          <VideoAd key={`auth-${vehicle.make}`} src={videoAds[1][0]} loop />
         </div>
         <PreChargeBar
-          left={<>
-            <div className="flex items-center gap-2">
-              <svg viewBox="0 0 24 24" className="w-4 h-4 text-teal-400 shrink-0" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-              <p className="text-teal-400 font-semibold text-sm">Payment Authorized</p>
-            </div>
-            <p className="text-white/60 text-xs">{vehicle.label}</p>
-          </>}
+          stepIndex={1}
+          statusLine="Payment authorized — preparing your charge session"
         />
       </div>
     );
@@ -282,16 +305,11 @@ export default function KioskPage() {
     return (
       <div className="h-screen w-screen relative overflow-hidden bg-black">
         <div className="absolute inset-0">
-          <VideoAd key={vehicle.make} src={videoAds[0][0]} loop />
+          <VideoAd key={`auth-${vehicle.make}`} src={videoAds[1][0]} loop />
         </div>
         <PreChargeBar
-          left={<>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full border-2 border-t-white border-r-white/30 border-b-transparent border-l-transparent animate-spin shrink-0" />
-              <p className="text-white font-semibold text-sm">Initiating charging…</p>
-            </div>
-            <p className="text-white/60 text-xs">{vehicle.label}</p>
-          </>}
+          stepIndex={2}
+          statusLine="Initiating charge — this will take just a moment…"
         />
       </div>
     );
