@@ -102,7 +102,11 @@ export default function KioskPage() {
   const [hit1, setHit1] = useState(false);
   const [hit2, setHit2] = useState(false);
   const [completionStarted, setCompletionStarted] = useState(false);
+  const [carMake, setCarMake] = useState("porsche");
+  const [terminalLines, setTerminalLines] = useState<string[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const terminalTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const terminalBoxRef = useRef<HTMLDivElement>(null);
 
   const videoAds = VIDEO_ADS[vehicle.make.toLowerCase()] ?? FALLBACK_ADS;
   const range = vehicle.target - vehicle.start;
@@ -127,12 +131,35 @@ export default function KioskPage() {
     setCompletionStarted(false);
   }
 
+  // AdCP terminal animation
+  useEffect(() => {
+    terminalTimers.current.forEach(clearTimeout);
+    setTerminalLines([]);
+    const lines = [
+      `[VideoEV] Handshake complete · Charger 03`,
+      `[VideoEV] Vehicle fingerprint acquired: ${carMake}`,
+      `[AdCP] Resolving audience profile...`,
+      `[AdCP] Bid won · Serving targeted creative.`,
+    ];
+    terminalTimers.current = lines.map((line, i) =>
+      setTimeout(() => setTerminalLines(prev => [...prev, line]), (i + 1) * 500)
+    );
+    return () => terminalTimers.current.forEach(clearTimeout);
+  }, [carMake]);
+
+  // Auto-scroll terminal
+  useEffect(() => {
+    if (terminalBoxRef.current) {
+      terminalBoxRef.current.scrollTop = terminalBoxRef.current.scrollHeight;
+    }
+  }, [terminalLines]);
+
   // Stage auto-advance
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
-    if (stage === "connect")    timers.push(setTimeout(() => setStage("auth"),       30000));
-    if (stage === "auth")       timers.push(setTimeout(() => setStage("initiating"), 20000));
-    if (stage === "initiating") timers.push(setTimeout(() => setStage("starting"),   30000));
+    if (stage === "connect")    timers.push(setTimeout(() => setStage("auth"),       20000));
+    if (stage === "auth")       timers.push(setTimeout(() => setStage("initiating"), 15000));
+    if (stage === "initiating") timers.push(setTimeout(() => setStage("starting"),   22000));
     if (stage === "starting")   timers.push(setTimeout(() => { setStage("charging"); setAdPhase("warmup"); }, 3000));
     return () => timers.forEach(clearTimeout);
   }, [stage]);
@@ -205,7 +232,8 @@ export default function KioskPage() {
         <img src="/videoev-icon-clear.svg" alt="VideoEV" className="w-28 h-28 mb-6 drop-shadow-2xl" />
         <h1 className="text-4xl font-bold text-white mb-3">Video<span className="text-teal-400">EV</span></h1>
         <p className="text-slate-400 text-lg">Tap anywhere to start demo</p>
-        <div className="absolute bottom-8 left-0 right-0 flex justify-center">
+        <div className="absolute bottom-8 left-0 right-0 flex flex-col items-center gap-2">
+          <p className="text-slate-600 text-xs tracking-widest uppercase">Select vehicle</p>
           <select
             value={vehicle.make}
             onClick={e => e.stopPropagation()}
@@ -214,7 +242,7 @@ export default function KioskPage() {
               setVehicle(v);
               setBattery(v.start);
             }}
-            className="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-300 focus:outline-none"
+            className="bg-slate-800/80 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-slate-300 focus:outline-none focus:border-teal-500"
           >
             {VEHICLES.map(v => <option key={v.make} value={v.make}>{v.label}</option>)}
           </select>
@@ -276,7 +304,7 @@ export default function KioskPage() {
     return (
       <div className="h-screen w-screen relative overflow-hidden bg-black">
         <div className="absolute inset-0">
-          <VideoAd key={`connect-${vehicle.make}`} src={videoAds[0][0]} loop />
+          <VideoAd key="pre-1" src={FALLBACK_ADS[0][0]} loop />
         </div>
         <PreChargeBar
           stepIndex={0}
@@ -291,7 +319,7 @@ export default function KioskPage() {
     return (
       <div className="h-screen w-screen relative overflow-hidden bg-black">
         <div className="absolute inset-0">
-          <VideoAd key={`auth-${vehicle.make}`} src={videoAds[1][0]} loop />
+          <VideoAd key="pre-2" src={FALLBACK_ADS[1][0]} loop />
         </div>
         <PreChargeBar
           stepIndex={1}
@@ -306,7 +334,7 @@ export default function KioskPage() {
     return (
       <div className="h-screen w-screen relative overflow-hidden bg-black">
         <div className="absolute inset-0">
-          <VideoAd key={`auth-${vehicle.make}`} src={videoAds[1][0]} loop />
+          <VideoAd key="pre-3" src={FALLBACK_ADS[1][0]} loop />
         </div>
         <PreChargeBar
           stepIndex={2}
@@ -321,9 +349,9 @@ export default function KioskPage() {
     return (
       <div
         className="h-screen w-screen flex flex-col items-center justify-center bg-slate-950"
-        style={{ animation: "fadeIn 0.6s ease-out" }}
+        style={{ animation: "fadeIn 0.3s ease-out" }}
       >
-        <style>{`@keyframes fadeIn { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: scale(1); } }`}</style>
+        <style>{`@keyframes fadeIn { from { opacity: 0.2; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }`}</style>
         <div className="w-20 h-20 rounded-full bg-teal-400/15 flex items-center justify-center mb-6">
           <svg viewBox="0 0 24 24" className="w-10 h-10 text-teal-400" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
             <polyline points="20 6 9 17 4 12" />
@@ -359,47 +387,51 @@ export default function KioskPage() {
 
         <div className="flex flex-1 overflow-hidden min-h-0">
           {/* Left: summary */}
-          <div className="flex flex-col items-center justify-center flex-1 px-12 bg-gradient-to-b from-blue-50 to-white">
-            <div className="text-7xl mb-6">🚗⚡</div>
-            <h1 className="text-4xl font-bold text-slate-800 mb-2">Charging stopped</h1>
-            <p className="text-slate-500 text-base mb-10 text-center">Please unplug the connector &amp; move your vehicle. Thank you.</p>
-            <div className="flex gap-16 mb-10">
+          <div className="flex flex-col items-center justify-center w-1/3 shrink-0 px-6 bg-gradient-to-b from-blue-50 to-white overflow-hidden">
+            <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center mb-5">
+              <svg viewBox="0 0 24 24" className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+            </div>
+            <h1 className="text-3xl font-bold text-slate-800 mb-1 text-center">Charging complete</h1>
+            <p className="text-slate-500 text-sm mb-7 text-center">Please unplug the connector &amp; move your vehicle.</p>
+            <div className="flex gap-8 mb-7">
               <div>
-                <p className="text-slate-400 text-sm mb-1">Charging Time</p>
-                <p className="text-slate-800 text-4xl font-bold num">{sessionMin} min</p>
+                <p className="text-slate-400 text-xs mb-0.5">Charging Time</p>
+                <p className="text-slate-800 text-3xl font-bold num">{sessionMin} min</p>
               </div>
               <div className="text-right">
-                <p className="text-slate-400 text-sm mb-1">Energy Delivered</p>
-                <p className="text-slate-800 text-4xl font-bold num">{kwh.toFixed(4)} kWh</p>
+                <p className="text-slate-400 text-xs mb-0.5">Energy Delivered</p>
+                <p className="text-slate-800 text-3xl font-bold num">{kwh.toFixed(4)} kWh</p>
               </div>
             </div>
-            <div className="flex gap-6">
+            <div className="flex gap-6 mb-7">
               <div className="text-center">
                 <p className="text-slate-400 text-xs mb-0.5">Session Cost</p>
-                <p className="text-slate-700 text-2xl font-bold num">${cost}</p>
+                <p className="text-slate-700 text-xl font-bold num">${cost}</p>
               </div>
               <div className="text-center">
                 <p className="text-slate-400 text-xs mb-0.5">Final Battery</p>
-                <p className="text-emerald-600 text-2xl font-bold num">{Math.round(battery)}%</p>
+                <p className="text-emerald-600 text-xl font-bold num">{Math.round(battery)}%</p>
               </div>
             </div>
             <button
               onClick={() => resetAll(vehicle)}
-              className="mt-10 px-14 py-3.5 bg-white border-2 border-slate-300 rounded-xl text-slate-700 font-semibold text-lg hover:bg-slate-100 transition-colors"
+              className="px-10 py-3 bg-white border-2 border-slate-300 rounded-xl text-slate-700 font-semibold text-base hover:bg-slate-100 transition-colors"
             >
               New Session
             </button>
           </div>
 
           {/* Right: completion video ad */}
-          <div className="w-[45%] shrink-0 bg-black flex flex-col">
+          <div className="flex-1 bg-black flex flex-col">
             <div className="px-4 py-2 bg-slate-900 flex items-center justify-between shrink-0">
               <span className="eyebrow text-slate-500">Sponsored · {completionVideoAd[1]}</span>
               <span className="text-slate-500 text-xs">${completionVideoAd[2]} CPM</span>
             </div>
-            <div className="flex-1 min-h-0">
+            <div className="flex-1 min-h-0 relative overflow-hidden">
               {completionStarted && (
-                <VideoAd key="complete" src={completionVideoAd[0]} />
+                <div className="absolute inset-0">
+                  <VideoAd key="complete" src={completionVideoAd[0]} />
+                </div>
               )}
             </div>
           </div>
@@ -419,75 +451,79 @@ export default function KioskPage() {
       <div className="flex flex-1 overflow-hidden min-h-0">
 
         {/* Left sidebar */}
-        <aside className="w-72 shrink-0 bg-slate-950 border-r border-slate-800 flex flex-col p-5 overflow-hidden">
-          <p className="eyebrow text-slate-500 mb-4">Charging Status</p>
+        <aside className="w-72 shrink-0 bg-slate-950 border-r border-slate-800 flex flex-col p-5 overflow-y-auto" style={{ scrollbarWidth: "none" }}>
+          <p className="eyebrow text-slate-500 mb-2">Charging Status</p>
+
+          {/* Car selector */}
+          <div className="flex gap-1 mb-3">
+            {["porsche", "ford", "tesla"].map(make => (
+              <button
+                key={make}
+                onClick={() => setCarMake(make)}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded capitalize transition-colors ${
+                  carMake === make
+                    ? "bg-teal-400 text-slate-900"
+                    : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                }`}
+              >
+                {make}
+              </button>
+            ))}
+          </div>
 
           {/* Battery */}
-          <div className="mb-5">
-            <div className="flex items-center gap-1.5 mb-0.5">
-              <span className="text-xs">🔋</span>
-              <span className="eyebrow text-slate-400">Battery Level</span>
-            </div>
-            <div className={`text-3xl font-bold num ${batteryTextColor}`}>{Math.round(battery)}%</div>
-            <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden mt-2">
+          <div className="mb-3">
+            <span className="eyebrow text-slate-400">Battery Level</span>
+            <div className={`text-2xl font-bold num mt-0.5 ${batteryTextColor}`}>{Math.round(battery)}%</div>
+            <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden mt-1.5">
               <div className={`h-full rounded-full transition-all duration-1000 ${batteryColor}`} style={{ width: `${battery}%` }} />
             </div>
-            {/* Target indicator */}
-            <div className="text-slate-600 text-xs mt-1">Target: {vehicle.target}%</div>
+            <div className="text-slate-600 text-xs mt-0.5">Target {vehicle.target}%</div>
           </div>
 
-          <div className="mb-5">
-            <div className="flex items-center gap-1.5 mb-0.5">
-              <span className="text-xs">⚡</span>
-              <span className="eyebrow text-slate-400">Power Delivered</span>
+          {/* Power + Time in a row */}
+          <div className="flex gap-4 mb-4">
+            <div className="flex-1">
+              <span className="eyebrow text-slate-400">Power</span>
+              <div className="text-2xl font-bold num text-white mt-0.5">{kwh.toFixed(1)} kWh</div>
             </div>
-            <div className="text-3xl font-bold num text-white">{kwh.toFixed(1)} kWh</div>
-          </div>
-
-          <div className="mb-5">
-            <div className="flex items-center gap-1.5 mb-0.5">
-              <span className="text-xs">🕐</span>
-              <span className="eyebrow text-slate-400">Time Remaining</span>
+            <div className="flex-1">
+              <span className="eyebrow text-slate-400">Time Left</span>
+              <div className="text-2xl font-bold num text-white mt-0.5">{remaining} min</div>
             </div>
-            <div className="text-3xl font-bold num text-white">{remaining} min</div>
           </div>
 
-          <div className="mb-5">
-            <div className="flex items-center gap-1.5 mb-0.5">
-              <span className="text-xs">$</span>
-              <span className="eyebrow text-slate-400">Session Cost</span>
+          <div className="mb-4">
+            <span className="eyebrow text-slate-400">Session Cost</span>
+            <div className="text-2xl font-bold num text-white mt-0.5">${cost}</div>
+            <div className="text-slate-600 text-xs">${vehicle.rate}/kWh</div>
+          </div>
+
+          {/* AdCP terminal */}
+          <div className="mt-3 shrink-0 bg-black rounded-lg border border-slate-800 overflow-hidden">
+            <div className="px-3 py-1.5 border-b border-slate-800 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
+              <span className="eyebrow text-slate-500">AdCP Terminal</span>
             </div>
-            <div className="text-3xl font-bold num text-white">${cost}</div>
-            <div className="text-slate-600 text-xs mt-0.5">${vehicle.rate}/kWh</div>
+            <div
+              ref={terminalBoxRef}
+              className="px-3 py-2 font-mono text-xs space-y-0.5 min-h-[65px] max-h-[90px] overflow-y-auto"
+            >
+              {terminalLines.length === 0 && (
+                <p className="text-slate-700">Waiting for connection...</p>
+              )}
+              {terminalLines.map((line, i) => (
+                <p key={i} className={
+                  line.startsWith("[SYSTEM]") ? "text-yellow-400" :
+                  line.includes("Bid won") ? "text-teal-400" :
+                  "text-slate-500"
+                }>{line}</p>
+              ))}
+            </div>
           </div>
 
-          <div className="flex-1 min-h-0" />
-
-          {/* Ad info */}
-          <div className="mt-3 p-3 bg-slate-900 rounded-lg border border-slate-800">
-            <p className="eyebrow text-slate-600 mb-1">Now Serving</p>
-            {adPhase === "warmup" && (
-              <>
-                <p className="text-teal-400 font-semibold text-sm">{videoAds[0][1]}</p>
-                <p className="text-slate-600 text-xs">Video · ${videoAds[0][2]} CPM</p>
-              </>
-            )}
-            {adPhase === "display" && (
-              <>
-                <p className="text-yellow-400 font-semibold text-sm">{displayAd.brand}</p>
-                <p className="text-slate-600 text-xs">Display · ${displayAd.cpm} CPM</p>
-              </>
-            )}
-            {isVideoPhase && (
-              <>
-                <p className="text-teal-400 font-semibold text-sm">{currentVideoAd[1]}</p>
-                <p className="text-slate-600 text-xs">Video · ${currentVideoAd[2]} CPM</p>
-              </>
-            )}
-          </div>
-
-          <div className="mt-4 pt-4 border-t border-slate-800">
-            <span className="text-xl font-bold">Video<span className="text-teal-400">EV</span></span>
+          <div className="mt-3 pt-3 border-t border-slate-800">
+            <span className="text-base font-bold">Video<span className="text-teal-400">EV</span></span>
           </div>
         </aside>
 
@@ -502,7 +538,7 @@ export default function KioskPage() {
 
           <div className="flex-1 overflow-hidden min-h-0 bg-black">
             {adPhase === "warmup" && (
-              <VideoAd key={`warmup-${vehicle.make}`} src={videoAds[0][0]} loop />
+              <VideoAd key={carMake} src={`/api/decision?car_make=${carMake}`} loop />
             )}
 
             {adPhase === "display" && (
@@ -533,9 +569,9 @@ export default function KioskPage() {
           <span className="text-slate-300">Charging in progress · {vehicle.label}</span>
         </div>
         <div className="flex items-center gap-3 text-sm text-slate-400 num">
-          <span>🔋 {Math.round(battery)}%</span>
+          <span>{Math.round(battery)}% battery</span>
           <span className="text-slate-700">·</span>
-          <span>🕐 {remaining} min remaining</span>
+          <span>{remaining} min remaining</span>
         </div>
       </footer>
     </div>
