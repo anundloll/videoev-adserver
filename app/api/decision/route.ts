@@ -35,6 +35,13 @@ const FALLBACK = {
 
 // ─── Contextual override creatives ───────────────────────────────────────────
 
+// Weather: rainy day → comfort/warmth intent → Starbucks
+const RAINY_DAY_AD = {
+  brand: "Starbucks",
+  s3Url: `${S3}/Uber+Eats+TV+Spot+Passion+Fruit+Song+by+Aerosmith+-+iSpot.mp4`,
+  cpm: 38,
+};
+
 // Brand safety: family-friendly, suitable near schools
 const SCHOOL_ZONE_AD = {
   brand: "Instacart",
@@ -49,7 +56,7 @@ const LOW_BATTERY_AD = {
   cpm: 28,
 };
 
-function buildVAST(videoUrl: string, brand: string, cpm: number, ctx: { venue: string; msrp: string; dwell: string }): string {
+function buildVAST(videoUrl: string, brand: string, cpm: number, ctx: { venue: string; msrp: string; dwell: string; weather: string; time: string; traffic: string }): string {
   const base = "https://ads.videoev.com/api/track";
   const b = encodeURIComponent(brand);
   // Stable dummy ad ID derived from brand slug (no spaces, lowercase)
@@ -92,6 +99,9 @@ function buildVAST(videoUrl: string, brand: string, cpm: number, ctx: { venue: s
           <VenueType>${ctx.venue}</VenueType>
           <MSRPProxy>${ctx.msrp}</MSRPProxy>
           <EstDwellTime>${ctx.dwell} mins</EstDwellTime>
+          <Weather>${ctx.weather}</Weather>
+          <TimeOfDay>${ctx.time}</TimeOfDay>
+          <TrafficDensity>${ctx.traffic}</TrafficDensity>
         </Extension>
       </Extensions>
     </InLine>
@@ -107,7 +117,20 @@ export async function GET(req: NextRequest) {
   const venue    = searchParams.get("venue") ?? "luxury_retail";
   const msrp     = searchParams.get("msrp") ?? "120k+";
   const dwell    = searchParams.get("dwell") ?? "45";
-  const ctx = { venue, msrp, dwell };
+  const weather  = searchParams.get("weather") ?? "sunny";
+  const time     = searchParams.get("time") ?? "morning";
+  const traffic  = searchParams.get("traffic") ?? "low";
+  const ctx = { venue, msrp, dwell, weather, time, traffic };
+
+  // ── Rule 0: Weather ────────────────────────────────────────────────────────
+  // Rainy day → comfort/warmth intent spike → Starbucks
+  if (weather === "rainy") {
+    console.log(`[AdCP Rules] WEATHER — rainy signal. Overriding to ${RAINY_DAY_AD.brand}.`);
+    return new NextResponse(buildVAST(RAINY_DAY_AD.s3Url, RAINY_DAY_AD.brand, RAINY_DAY_AD.cpm, ctx), {
+      status: 200,
+      headers: { "Content-Type": "text/xml; charset=utf-8", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" },
+    });
+  }
 
   // ── Rule 1: Brand Safety ────────────────────────────────────────────────────
   // School zone overrides all — serve family-friendly creative regardless of vehicle

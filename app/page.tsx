@@ -108,7 +108,11 @@ export default function KioskPage() {
   const [venueCtx, setVenueCtx] = useState<"luxury_retail" | "grocery" | "highway_rest">("luxury_retail");
   const [msrpCtx, setMsrpCtx] = useState<"120k+" | "80k-120k">("120k+");
   const [dwellCtx, setDwellCtx] = useState<"45" | "15">("45");
+  const [weatherCtx, setWeatherCtx] = useState<"sunny" | "rainy" | "cloudy">("sunny");
+  const [timeCtx, setTimeCtx] = useState<"morning" | "afternoon" | "evening">("morning");
+  const [trafficCtx, setTrafficCtx] = useState<"low" | "medium" | "high">("low");
   const [terminalLines, setTerminalLines] = useState<string[]>([]);
+  const [copied, setCopied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const terminalTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const terminalBoxRef = useRef<HTMLDivElement>(null);
@@ -141,11 +145,18 @@ export default function KioskPage() {
     terminalTimers.current.forEach(clearTimeout);
     setTerminalLines([]);
     const venueLabel = venueCtx === "luxury_retail" ? "Luxury Retail" : venueCtx === "grocery" ? "Grocery" : "Highway Rest Stop";
+    const weatherLabel = weatherCtx === "sunny" ? "Sunny" : weatherCtx === "rainy" ? "Rainy" : "Cloudy";
+    const timeLabel = timeCtx === "morning" ? "Morning" : timeCtx === "afternoon" ? "Afternoon" : "Evening";
+    const trafficLabel = trafficCtx === "low" ? "Low" : trafficCtx === "medium" ? "Medium" : "High";
     const lines: string[] = [
       `[VideoEV] Handshake complete · Charger 03`,
       `[VideoEV] Vehicle fingerprint acquired: ${carMake}`,
       `[OCPP] MSRP Proxy: $${msrpCtx} | Dwell: ${dwellCtx} mins | Venue: ${venueLabel}`,
+      `[ENV] Weather: ${weatherLabel} | Time: ${timeLabel} | Traffic: ${trafficLabel}`,
     ];
+    if (weatherCtx === "rainy") {
+      lines.push(`[WEATHER] Rainy conditions. Serving comfort/warmth creative.`);
+    }
     if (locationCtx === "school") {
       lines.push(`[BRAND SAFETY] School zone detected. Restricting mature categories.`);
     }
@@ -158,7 +169,7 @@ export default function KioskPage() {
       setTimeout(() => setTerminalLines(prev => [...prev, line]), (i + 1) * 500)
     );
     return () => terminalTimers.current.forEach(clearTimeout);
-  }, [carMake, locationCtx, batteryCtx, venueCtx, msrpCtx, dwellCtx]);
+  }, [carMake, locationCtx, batteryCtx, venueCtx, msrpCtx, dwellCtx, weatherCtx, timeCtx, trafficCtx]);
 
   // Auto-scroll terminal
   useEffect(() => {
@@ -234,6 +245,7 @@ export default function KioskPage() {
   const sessionMin = Math.floor(elapsed / 60);
 
   const clock = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const adTagPath = `/api/decision?car_make=${carMake}&location=${locationCtx}&battery=${batteryCtx}&venue=${venueCtx}&msrp=${msrpCtx}&dwell=${dwellCtx}&weather=${weatherCtx}&time=${timeCtx}&traffic=${trafficCtx}`;
 
   // ─── START GATE ───────────────────────────────────────────────────────────
   if (stage === "start") {
@@ -547,6 +559,46 @@ export default function KioskPage() {
             </div>
           </div>
 
+          {/* Weather / Time / Traffic */}
+          <div className="flex gap-2 mb-3">
+            <div className="flex-1">
+              <span className="eyebrow text-slate-500 block mb-1">Weather</span>
+              <select
+                value={weatherCtx}
+                onChange={e => setWeatherCtx(e.target.value as "sunny" | "rainy" | "cloudy")}
+                className="w-full bg-slate-800 text-slate-300 text-xs rounded px-2 py-1.5 border border-slate-700 focus:outline-none"
+              >
+                <option value="sunny">Sunny</option>
+                <option value="rainy">Rainy</option>
+                <option value="cloudy">Cloudy</option>
+              </select>
+            </div>
+            <div className="flex-1">
+              <span className="eyebrow text-slate-500 block mb-1">Time</span>
+              <select
+                value={timeCtx}
+                onChange={e => setTimeCtx(e.target.value as "morning" | "afternoon" | "evening")}
+                className="w-full bg-slate-800 text-slate-300 text-xs rounded px-2 py-1.5 border border-slate-700 focus:outline-none"
+              >
+                <option value="morning">Morning</option>
+                <option value="afternoon">Afternoon</option>
+                <option value="evening">Evening</option>
+              </select>
+            </div>
+            <div className="flex-1">
+              <span className="eyebrow text-slate-500 block mb-1">Traffic</span>
+              <select
+                value={trafficCtx}
+                onChange={e => setTrafficCtx(e.target.value as "low" | "medium" | "high")}
+                className="w-full bg-slate-800 text-slate-300 text-xs rounded px-2 py-1.5 border border-slate-700 focus:outline-none"
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+          </div>
+
           {/* Battery */}
           <div className="mb-3">
             <span className="eyebrow text-slate-400">Battery Level</span>
@@ -593,10 +645,72 @@ export default function KioskPage() {
                   line.startsWith("[BRAND SAFETY]") ? "text-orange-400" :
                   line.startsWith("[CONTEXT]") ? "text-yellow-400" :
                   line.startsWith("[OCPP]") ? "text-sky-400" :
+                  line.startsWith("[ENV]") ? "text-violet-400" :
+                  line.startsWith("[WEATHER]") ? "text-blue-400" :
                   line.includes("Bid won") ? "text-teal-400" :
                   "text-slate-500"
                 }>{line}</p>
               ))}
+            </div>
+          </div>
+
+          {/* Developer Tools */}
+          <div className="mt-3 pt-3 border-t border-slate-800">
+            <div className="flex items-center gap-1.5 mb-2">
+              <svg viewBox="0 0 24 24" className="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
+              </svg>
+              <span className="eyebrow text-slate-500">Developer Tools</span>
+            </div>
+
+            <span className="eyebrow text-slate-600 block mb-1">Live VAST Tag</span>
+            <div className="relative bg-slate-950 border border-slate-800 rounded-md overflow-hidden mb-2">
+              <textarea
+                readOnly
+                value={adTagPath}
+                rows={3}
+                className="w-full bg-transparent font-mono text-[10px] text-teal-300/70 px-2.5 py-2 resize-none focus:outline-none leading-relaxed"
+              />
+            </div>
+
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => {
+                  const full = window.location.origin + adTagPath;
+                  navigator.clipboard.writeText(full).then(() => {
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  });
+                }}
+                className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded text-xs font-medium transition-colors ${
+                  copied
+                    ? "bg-teal-500/20 text-teal-400 border border-teal-500/30"
+                    : "bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 hover:text-slate-300"
+                }`}
+              >
+                {copied ? (
+                  <>
+                    <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                    Copied
+                  </>
+                ) : (
+                  <>
+                    <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                    Copy URL
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => window.open(window.location.origin + adTagPath, "_blank")}
+                className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 hover:text-slate-300 rounded text-xs font-medium transition-colors"
+              >
+                <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+                </svg>
+                View Raw XML
+              </button>
             </div>
           </div>
 
@@ -616,7 +730,7 @@ export default function KioskPage() {
 
           <div className="flex-1 overflow-hidden min-h-0 bg-black">
             {adPhase === "warmup" && (
-              <VideoAd key={`${carMake}-${locationCtx}-${batteryCtx}-${venueCtx}-${msrpCtx}-${dwellCtx}`} src={`/api/decision?car_make=${carMake}&location=${locationCtx}&battery=${batteryCtx}&venue=${venueCtx}&msrp=${msrpCtx}&dwell=${dwellCtx}`} loop />
+              <VideoAd key={`${carMake}-${locationCtx}-${batteryCtx}-${venueCtx}-${msrpCtx}-${dwellCtx}-${weatherCtx}-${timeCtx}-${trafficCtx}`} src={adTagPath} loop />
             )}
 
             {adPhase === "display" && (
