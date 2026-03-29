@@ -40,6 +40,7 @@ export default function VideoAd({ src, onEnded, loop = false }: Props) {
         className="w-full h-full object-cover"
         playsInline
         autoPlay
+        muted
         loop={loop}
         onEnded={onEnded}
       />

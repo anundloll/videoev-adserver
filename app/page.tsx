@@ -529,7 +529,7 @@ const DISPLAY_ADS = [
 ];
 
 // Battery charges at this rate (% per second) in demo
-const CHARGE_RATE = 0.18;
+const CHARGE_RATE = 0.10;
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -1447,6 +1447,13 @@ export default function KioskPage() {
           <span>{Math.round(battery)}%</span>
           <span className="text-slate-700">·</span>
           <span>{remaining} min</span>
+          <span className="text-slate-700">·</span>
+          <button
+            onClick={() => { setBattery(vehicle.target); setStage("complete"); setCompletionStarted(true); }}
+            className="text-slate-500 hover:text-slate-300 transition-colors underline underline-offset-2"
+          >
+            Skip to end →
+          </button>
         </div>
       </footer>
     </div>
