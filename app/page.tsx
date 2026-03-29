@@ -1320,8 +1320,7 @@ export default function KioskPage() {
                 <p className="text-white/75 text-lg lg:text-2xl text-center px-8">{displayAd.tagline}</p>
                 <div className="absolute bottom-5 right-5 bg-black/25 backdrop-blur rounded-full px-3 py-1 text-white/50 text-xs">${displayAd.cpm} CPM</div>
                 <div className="absolute top-5 right-5 text-white/30 text-xl font-bold">Video<span className="text-white/50">EV</span></div>
-                {displayAd.qr && (
-                  <div className="absolute bottom-5 left-5 flex flex-col items-center gap-1.5">
+                <div className="absolute bottom-5 left-5 flex flex-col items-center gap-1.5">
                     <div className="bg-white/95 rounded-lg p-2">
                       <svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
                         {/* Top-left finder */}
@@ -1347,7 +1346,6 @@ export default function KioskPage() {
                     </div>
                     <span className="text-white/60 text-[9px] font-medium tracking-wide">Scan for offer</span>
                   </div>
-                )}
               </div>
             )}
             {!playlistPlaying && isVideoPhase && (
