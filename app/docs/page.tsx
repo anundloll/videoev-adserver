@@ -1,15 +1,15 @@
 import Link from "next/link";
 
 const PARAMS = [
-  { name: "car_make",  type: "String",  description: "Vehicle manufacturer (lowercase)",       example: "porsche" },
-  { name: "battery",   type: "Integer", description: "State of Charge (0–100)",                example: "15" },
-  { name: "location",  type: "String",  description: "Contextual environment",                 example: "school" },
-  { name: "venue",     type: "String",  description: "Physical venue type",                    example: "luxury_retail" },
-  { name: "msrp",      type: "String",  description: "Vehicle price tier",                     example: "120k+" },
-  { name: "dwell",     type: "Integer", description: "Estimated charging time (minutes)",      example: "45" },
-  { name: "weather",   type: "String",  description: "Ambient weather condition",              example: "rainy" },
-  { name: "time",      type: "String",  description: "Time of day",                            example: "morning" },
-  { name: "traffic",   type: "String",  description: "Traffic density at venue",               example: "high" },
+  { name: "car_make",  type: "String",  description: "Vehicle manufacturer (lowercase)",  values: "tesla · porsche · lucid · bmw · ford · rivian · genesis · cadillac · jaguar · polestar · volvo",                                              example: "porsche" },
+  { name: "battery",   type: "Integer", description: "State of Charge (0–100)",           values: "100 · 90 · 60 · 40 · 20 · 15 · 5",                                                                                                            example: "15" },
+  { name: "location",  type: "String",  description: "Contextual environment",            values: "highway · urban · suburban · shopping · airport · stadium · hospital · office_park · school",                                                  example: "school" },
+  { name: "venue",     type: "String",  description: "Physical venue type",               values: "luxury_retail · shopping_mall · grocery · downtown · airport · hotel · office · university · stadium · hospital · highway_rest",               example: "luxury_retail" },
+  { name: "msrp",      type: "String",  description: "Vehicle price tier",                values: "200k+ · 120k+ · 80k-120k · 40k-80k · under-40k",                                                                                             example: "120k+" },
+  { name: "dwell",     type: "Integer", description: "Estimated charging time (minutes)", values: "10 · 15 · 30 · 45 · 60 · 90",                                                                                                                 example: "45" },
+  { name: "weather",   type: "String",  description: "Ambient weather condition",         values: "sunny · rainy · cloudy",                                                                                                                       example: "rainy" },
+  { name: "time",      type: "String",  description: "Time of day",                       values: "morning · afternoon · evening",                                                                                                                example: "morning" },
+  { name: "traffic",   type: "String",  description: "Traffic density at venue",          values: "low · medium · high",                                                                                                                          example: "high" },
 ];
 
 const RULES = [
@@ -32,18 +32,26 @@ const SAMPLE_REQUEST = `GET https://ads.videoev.com/api/decision
   &traffic=low`;
 
 const SAMPLE_RESPONSE = `<?xml version="1.0" encoding="UTF-8"?>
-<VAST version="4.0">
+<VAST version="4.0" xmlns:xs="http://www.w3.org/2001/XMLSchema">
   <Ad id="videoev-1711584000000" sequence="1">
     <InLine>
       <AdSystem version="1.0">VideoEV AdCP</AdSystem>
       <AdTitle>Capital One — VideoEV Network</AdTitle>
-      <Impression><![CDATA[https://ads.videoev.com/api/track
-        ?event=impression&brand=Capital+One&cpm=45]]></Impression>
+      <Pricing model="cpm" currency="USD"><![CDATA[45]]></Pricing>
+      <Error><![CDATA[https://ads.videoev.com/api/track?event=error&code=[ERRORCODE]&brand=Capital%20One&cb=[CACHEBUSTING]]]></Error>
+      <Impression id="imp1"><![CDATA[https://ads.videoev.com/api/track?event=impression&brand=Capital%20One&cpm=45&cb=[CACHEBUSTING]&ts=[TIMESTAMP]]]></Impression>
       <Creatives>
         <Creative id="1" sequence="1">
-          <UniversalAdId idRegistry="VideoEV">videoev-capital-one-001</UniversalAdId>
+          <UniversalAdId idRegistry="VideoEV">VEV-CAPITAL-ONE-PORSCHE-001</UniversalAdId>
           <Linear>
             <Duration>00:00:30</Duration>
+            <TrackingEvents>
+              <Tracking event="start"><![CDATA[https://ads.videoev.com/api/track?event=start&brand=Capital%20One&cb=[CACHEBUSTING]&ts=[TIMESTAMP]]]></Tracking>
+              <Tracking event="firstQuartile"><![CDATA[https://ads.videoev.com/api/track?event=q1&brand=Capital%20One&cb=[CACHEBUSTING]&ts=[TIMESTAMP]]]></Tracking>
+              <Tracking event="midpoint"><![CDATA[https://ads.videoev.com/api/track?event=midpoint&brand=Capital%20One&cb=[CACHEBUSTING]&ts=[TIMESTAMP]]]></Tracking>
+              <Tracking event="thirdQuartile"><![CDATA[https://ads.videoev.com/api/track?event=q3&brand=Capital%20One&cb=[CACHEBUSTING]&ts=[TIMESTAMP]]]></Tracking>
+              <Tracking event="complete"><![CDATA[https://ads.videoev.com/api/track?event=complete&brand=Capital%20One&cb=[CACHEBUSTING]&ts=[TIMESTAMP]]]></Tracking>
+            </TrackingEvents>
             <MediaFiles>
               <MediaFile delivery="progressive" type="video/mp4"
                 width="1920" height="1080">
@@ -58,12 +66,15 @@ const SAMPLE_RESPONSE = `<?xml version="1.0" encoding="UTF-8"?>
           <Brand>Capital One</Brand>
           <CPM>45</CPM>
           <Network>VideoEV AdCP</Network>
-          <VenueType>luxury_retail</VenueType>
-          <MSRPProxy>120k+</MSRPProxy>
-          <EstDwellTime>45 mins</EstDwellTime>
-          <Weather>sunny</Weather>
-          <TimeOfDay>morning</TimeOfDay>
-          <TrafficDensity>low</TrafficDensity>
+          <PlacementContext>
+            <VenueType>luxury_retail</VenueType>
+            <MSRPProxy>120k+</MSRPProxy>
+            <EstDwellTime>45 mins</EstDwellTime>
+            <Battery>80</Battery>
+            <Weather>sunny</Weather>
+            <TimeOfDay>morning</TimeOfDay>
+            <TrafficDensity>low</TrafficDensity>
+          </PlacementContext>
         </Extension>
       </Extensions>
     </InLine>
@@ -152,6 +163,7 @@ export default function DocsPage() {
                   <th className="text-left px-5 py-3 text-slate-400 font-semibold">Parameter</th>
                   <th className="text-left px-5 py-3 text-slate-400 font-semibold">Type</th>
                   <th className="text-left px-5 py-3 text-slate-400 font-semibold">Description</th>
+                  <th className="text-left px-5 py-3 text-slate-400 font-semibold">Accepted Values</th>
                   <th className="text-left px-5 py-3 text-slate-400 font-semibold">Example</th>
                 </tr>
               </thead>
@@ -169,6 +181,9 @@ export default function DocsPage() {
                       }`}>{p.type}</span>
                     </td>
                     <td className="px-5 py-3.5 text-slate-400">{p.description}</td>
+                    <td className="px-5 py-3.5">
+                      <span className="text-slate-500 font-mono text-xs leading-relaxed">{p.values}</span>
+                    </td>
                     <td className="px-5 py-3.5">
                       <code className="text-slate-400 font-mono text-xs">{p.example}</code>
                     </td>
@@ -273,7 +288,7 @@ export default function DocsPage() {
               <span className="text-xs text-slate-500 font-mono">/api/track</span>
             </div>
             <div className="px-5 py-4 font-mono text-sm text-teal-300">
-              https://ads.videoev.com/api/track?event=<span className="text-amber-300">[event]</span>&amp;brand=<span className="text-amber-300">[brand]</span>&amp;cpm=<span className="text-amber-300">[cpm]</span>
+              https://ads.videoev.com/api/track?event=<span className="text-amber-300">[event]</span>&amp;brand=<span className="text-amber-300">[brand]</span>&amp;cpm=<span className="text-amber-300">[cpm]</span>&amp;cb=<span className="text-amber-300">[CACHEBUSTING]</span>&amp;ts=<span className="text-amber-300">[TIMESTAMP]</span>
             </div>
           </div>
           <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -283,6 +298,44 @@ export default function DocsPage() {
               </div>
             ))}
           </div>
+        </section>
+
+        {/* CORS */}
+        <section>
+          <h2 className="text-xl font-semibold text-white mb-4">CORS Policy</h2>
+          <p className="text-slate-500 text-sm mb-5">
+            All endpoints support cross-origin requests. The API uses reflective CORS — known VideoEV origins receive
+            an explicit <code className="text-teal-300 font-mono text-xs">Access-Control-Allow-Origin</code> echo;
+            all other origins receive <code className="text-teal-300 font-mono text-xs">*</code> for VAST player compatibility.
+          </p>
+          <div className="rounded-xl border border-slate-800 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-900 border-b border-slate-800">
+                  <th className="text-left px-5 py-3 text-slate-400 font-semibold">Origin</th>
+                  <th className="text-left px-5 py-3 text-slate-400 font-semibold">Access-Control-Allow-Origin</th>
+                  <th className="text-left px-5 py-3 text-slate-400 font-semibold">Use case</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { origin: "https://data.videoev.com",  allow: "https://data.videoev.com",  note: "Analytics dashboard" },
+                  { origin: "https://ads.videoev.com",   allow: "https://ads.videoev.com",   note: "Sandbox / self" },
+                  { origin: "https://demo.videoev.com",  allow: "https://demo.videoev.com",  note: "Demo kiosk" },
+                  { origin: "(any other)",               allow: "*",                          note: "Third-party VAST players" },
+                ].map((row, i) => (
+                  <tr key={i} className={`border-b border-slate-800/60 ${i % 2 === 0 ? "bg-slate-950" : "bg-slate-900/30"}`}>
+                    <td className="px-5 py-3.5"><code className="text-teal-300 font-mono text-xs">{row.origin}</code></td>
+                    <td className="px-5 py-3.5"><code className="text-amber-300 font-mono text-xs">{row.allow}</code></td>
+                    <td className="px-5 py-3.5 text-slate-500 text-xs">{row.note}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-slate-600 text-xs mt-3">
+            OPTIONS preflight requests are handled automatically. Allowed methods: <code className="text-slate-500 font-mono">GET, OPTIONS</code>.
+          </p>
         </section>
 
         {/* Footer */}
