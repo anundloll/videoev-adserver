@@ -170,6 +170,7 @@ function buildVAST(
   conversionType?: string,
   conversionValue?: string,
   qrCodeUrl?: string,
+  score?: number,
 ): string {
   const base       = "https://ads.videoev.com/api/track";
   const b          = encodeURIComponent(brand);
@@ -211,6 +212,7 @@ function buildVAST(
         <Extension type="VideoEV">
           <Brand>${brand}</Brand>
           <CPM>${cpm}</CPM>
+          <Score>${score != null ? score.toFixed(2) : cpm.toFixed(2)}</Score>
           <Network>VideoEV AdCP</Network>
           <PlacementContext>
             <VenueType>${ctx.venue}</VenueType>
@@ -248,7 +250,9 @@ export async function GET(req: NextRequest) {
   const carMake    = searchParams.get("car_make")?.toLowerCase() ?? "";
   const location   = searchParams.get("location")?.toLowerCase() ?? "highway";
   const battery    = searchParams.get("battery") ?? "80";
-  const venue      = searchParams.get("venue") ?? "luxury_retail";
+  const rawVenue   = searchParams.get("venue") ?? "luxury_retail";
+  // Normalise legacy/unknown venue values to known scoring values
+  const venue      = rawVenue === "ev_station" ? "highway_rest" : rawVenue;
   const msrp       = searchParams.get("msrp") ?? "120k+";
   const dwell      = searchParams.get("dwell") ?? "45";
   const weather    = searchParams.get("weather") ?? "sunny";
@@ -305,6 +309,7 @@ export async function GET(req: NextRequest) {
         winner.conversion.type,
         winner.conversion.value,
         winner.qrCodeUrl,
+        score,
       ),
       { status: 200, headers: responseHeaders },
     );
