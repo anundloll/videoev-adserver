@@ -5,9 +5,14 @@ import { useEffect, useRef, useState, useCallback } from "react";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface Telemetry {
-  msrp: string;    // "120k+" | "40k-80k"
-  battery: number; // 0–100
-  weather: string; // "sunny" | "rainy"
+  msrp: string;       // "200k+" | "120k+" | "80k-120k" | "40k-80k" | "under-40k"
+  battery: number;    // 0–100
+  weather: string;    // "sunny" | "rainy" | "cloudy"
+  venue?: string;     // "luxury_retail" | "airport" | "mall" | "hospital" | "office" | "highway_rest" | "grocery"
+  location?: string;  // "urban" | "suburban" | "highway" | "rural" | "school"
+  time?: string;      // "morning" | "afternoon" | "evening"
+  traffic?: string;   // "low" | "medium" | "high"
+  carMake?: string;   // "tesla" | "porsche" | "rivian" | "bmw" | "lucid" | "volvo" | "jaguar" | "cadillac"
 }
 
 export interface VideoEVPlayerProps {
@@ -34,15 +39,15 @@ async function fetchAdFromVAST(
   telemetry: Telemetry,
 ): Promise<AdData | null> {
   const params = new URLSearchParams({
-    car_make: "tesla",
-    msrp: telemetry.msrp,
-    battery: String(telemetry.battery),
-    weather: telemetry.weather,
-    venue: telemetry.msrp === "120k+" ? "luxury_retail" : "mall",
-    location: "suburban",
-    dwell: "45",
-    time: "morning",
-    traffic: telemetry.battery < 20 ? "high" : "low",
+    car_make:    telemetry.carMake   ?? "tesla",
+    msrp:        telemetry.msrp,
+    battery:     String(telemetry.battery),
+    weather:     telemetry.weather,
+    venue:       telemetry.venue    ?? (telemetry.msrp === "120k+" || telemetry.msrp === "200k+" ? "luxury_retail" : "mall"),
+    location:    telemetry.location ?? "suburban",
+    dwell:       "45",
+    time:        telemetry.time     ?? "morning",
+    traffic:     telemetry.traffic  ?? (telemetry.battery < 20 ? "high" : "low"),
     current_bid: "200",
   });
 
@@ -107,7 +112,7 @@ export default function VideoEVPlayer({
 
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [telemetry.msrp, telemetry.battery, telemetry.weather, adDecisionUrl]);
+  }, [telemetry.msrp, telemetry.battery, telemetry.weather, telemetry.venue, telemetry.location, telemetry.time, telemetry.traffic, telemetry.carMake, adDecisionUrl]);
 
   // Load + play video whenever the resolved URL changes
   useEffect(() => {
