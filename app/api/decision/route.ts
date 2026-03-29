@@ -299,9 +299,14 @@ export async function GET(req: NextRequest) {
       `car=${carMake} msrp=${msrp} weather=${weather} battery=${battery} bid=${incomingBid}`,
     );
 
+    // Generated ads have placeholder videoUrls — use a real S3 creative for playback
+    const realVideoUrl = winner.videoUrl.includes("placeholder_")
+      ? (AD_MAP[carMake]?.s3Url ?? FALLBACK.s3Url)
+      : winner.videoUrl;
+
     return new NextResponse(
       buildVAST(
-        winner.videoUrl,
+        realVideoUrl,
         winner.brand,
         winner.baseCpm,
         carMake,
