@@ -1,29 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
+import { AD_BANK } from "@/lib/ad-generator";
 
 const S3 = "https://videoev.s3.us-east-1.amazonaws.com";
 
+// ─── Legacy vehicle-targeted creatives (fallback when scoring yields no winner) ─
 const AD_MAP: Record<string, { brand: string; s3Url: string; cpm: number }> = {
-  // Tech early adopter → Apple iPhone 17 Pro
   tesla:    { brand: "Apple",           s3Url: `${S3}/Apple+iPhone+17+Pro+TV+Spot+Smart+Group+Selfies+Song+by+Inspector+Spacetime+-+iSpot.mp4`, cpm: 42 },
-  // Affluent globe-trotter → Capital One Venture X (Jennifer Garner)
   porsche:  { brand: "Capital One",     s3Url: `${S3}/Capital+One+Venture+X+Card+TV+Spot+Globe+Hopping+30+Featuring+Jennifer+Garner+-+iSpot.mp4`, cpm: 45 },
-  // Ultra-luxury celebrity → Maybelline (Miley Cyrus)
   lucid:    { brand: "Maybelline",      s3Url: `${S3}/Maybelline+New+York+Serum+Lipstick+TV+Spot+Endless+Possibilities+Featuring+Miley+Cyrus+-+iSpot.mp4`, cpm: 50 },
-  // Performance premium European → Oakley Athletic Intelligence
   bmw:      { brand: "Oakley",          s3Url: `${S3}/Oakley+TV+Spot+Athletic+Intelligence+Is+Here+Featuring+Kylian+Mbapp+Mark+Cavendish+-+iSpot.mp4`, cpm: 38 },
-  // Mainstream American — Ford F-150/Bronco buyer → Nike
   ford:     { brand: "Nike",            s3Url: `${S3}/Nike+TV+Spot+Why+Do+It+Featuring+Saquon+Barkley+LeBron+James+Scottie+Scheffler+-+iSpot.mp4`, cpm: 34 },
-  // Adventure/outdoor — exact Rivian brand match
   rivian:   { brand: "Rivian",          s3Url: `${S3}/Real+Rivian+Adventures+%EF%BD%9C+Saving+Summer.mp4`, cpm: 32 },
-  // Wellness-focused luxury → Planet Fitness
   genesis:  { brand: "Planet Fitness",  s3Url: `${S3}/Planet+Fitness+TV+Spot+Finish+Strong+-+iSpot.mp4`, cpm: 22 },
-  // American premium icons → Nike (LeBron, Saquon, Scheffler)
   cadillac: { brand: "Nike",            s3Url: `${S3}/Nike+TV+Spot+Why+Do+It+Featuring+Saquon+Barkley+LeBron+James+Scottie+Scheffler+-+iSpot.mp4`, cpm: 48 },
-  // Cinematic sophistication → XFINITY Jurassic Park (Jeff Goldblum)
   jaguar:   { brand: "XFINITY",         s3Url: `${S3}/XFINITY+TV+Spot+Jurassic+Park+Ecosystem+Featuring+Jeff+Goldblum+Sam+Neill+Laura+Dern+-+iSpot.mp4`, cpm: 40 },
-  // Modern urban Scandinavian → T-Mobile (Zoe Saldaña, Harvey Guillén)
   polestar: { brand: "T-Mobile",        s3Url: `${S3}/T-Mobile+TV+Spot+Group+Photo+iPhone+17+15-Minute+Switch+Featuring+Harvey+Guilln+Zoe+Saldaa+Druski+-+iSpot.mp4`, cpm: 30 },
-  // Family safety, home-focused → Rocket + Redfin
   volvo:    { brand: "Rocket + Redfin", s3Url: `${S3}/Rocket+%2B+Redfin.+Your+journey+home+just+got+an+upgrade..mp4`, cpm: 35 },
 };
 
@@ -33,54 +24,179 @@ const FALLBACK = {
   cpm: 18,
 };
 
-// ─── Contextual override creatives ───────────────────────────────────────────
-
-// Weather: rainy day → comfort/warmth intent → Starbucks
-const RAINY_DAY_AD = {
-  brand: "Starbucks",
-  s3Url: `${S3}/Uber+Eats+TV+Spot+Passion+Fruit+Song+by+Aerosmith+-+iSpot.mp4`,
-  cpm: 38,
-};
-
-// Brand safety: family-friendly, suitable near schools
+// Brand-safety override for school zones
 const SCHOOL_ZONE_AD = {
   brand: "Instacart",
   s3Url: `${S3}/Instacart+Super+Bowl+2026+TV+Spot+Bananas+Featuring+Benson+Boone+Ben+Stiller+-+iSpot.mp4`,
   cpm: 20,
 };
 
-// Contextual intent: driver is low on battery → hungry, wants food fast
-const LOW_BATTERY_AD = {
-  brand: "Uber Eats",
-  s3Url: `${S3}/Uber+Eats+TV+Spot+Passion+Fruit+Song+by+Aerosmith+-+iSpot.mp4`,
-  cpm: 28,
+// ─── CORS ─────────────────────────────────────────────────────────────────────
+
+const ALLOWED_ORIGINS = new Set([
+  "https://data.videoev.com",
+  "https://ads.videoev.com",
+  "https://demo.videoev.com",
+]);
+
+function corsHeaders(origin: string | null) {
+  const allow = origin && ALLOWED_ORIGINS.has(origin) ? origin : "*";
+  return {
+    "Access-Control-Allow-Origin":  allow,
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Vary": "Origin",
+  };
+}
+
+// ─── Scoring Context ──────────────────────────────────────────────────────────
+
+type ScoringContext = {
+  carMake:  string;
+  location: string;
+  battery:  string;
+  venue:    string;
+  msrp:     string;
+  dwell:    string;
+  weather:  string;
+  time:     string;
+  traffic:  string;
 };
 
-function buildVAST(videoUrl: string, brand: string, cpm: number, ctx: { venue: string; msrp: string; dwell: string; weather: string; time: string; traffic: string }): string {
-  const base = "https://ads.videoev.com/api/track";
-  const b = encodeURIComponent(brand);
-  // Stable dummy ad ID derived from brand slug (no spaces, lowercase)
-  const brandSlug = brand.toLowerCase().replace(/[^a-z0-9]/g, "-");
-  const universalId = `videoev-${brandSlug}-001`;
+/**
+ * Derive a set of affinity tags from incoming request context.
+ * These are matched against ad.targetAffinities for +10 pts per hit.
+ */
+function buildContextTags(ctx: ScoringContext): Set<string> {
+  const tags = new Set<string>();
+
+  // MSRP → wealth signals
+  if (ctx.msrp === "200k+") {
+    tags.add("ultra_luxury");
+    tags.add("high_net_worth");
+    tags.add("affluent");
+    tags.add("high_msrp");
+  } else if (ctx.msrp === "120k+") {
+    tags.add("high_net_worth");
+    tags.add("affluent");
+    tags.add("high_msrp");
+  } else if (ctx.msrp === "60k+") {
+    tags.add("affluent");
+  }
+
+  // Location signals
+  if (ctx.location === "suburban")  { tags.add("suburban"); tags.add("homeowner"); }
+  if (ctx.location === "urban")     { tags.add("urban"); }
+  if (ctx.location === "rural")     { tags.add("rural"); }
+  if (ctx.location === "highway")   { tags.add("commuter"); }
+
+  // Venue signals
+  if (ctx.venue === "airport")        { tags.add("traveler"); tags.add("business_class"); }
+  if (ctx.venue === "hospital")       { tags.add("health_conscious"); }
+  if (ctx.venue === "luxury_retail")  { tags.add("luxury_buyer"); tags.add("affluent"); tags.add("high_net_worth"); }
+  if (ctx.venue === "office")         { tags.add("corporate"); tags.add("b2b"); }
+  if (ctx.venue === "mall")           { tags.add("shopper"); tags.add("family"); }
+
+  // Time signals
+  if (ctx.time === "morning")  tags.add("morning");
+  if (ctx.time === "evening")  tags.add("evening");
+
+  // Weekend detection (server-side)
+  const dow = new Date().getDay();
+  if (dow === 0 || dow === 6) tags.add("weekend");
+
+  // Traffic
+  if (ctx.traffic === "high") tags.add("commuter");
+
+  // Battery urgency — low battery driver is likely hungry/stressed
+  if (parseInt(ctx.battery, 10) < 20) {
+    tags.add("urgent");
+    tags.add("commuter");
+  }
+
+  // Car make can map to affinities
+  if (ctx.carMake) tags.add(ctx.carMake);
+
+  return tags;
+}
+
+// ─── Weighted Scoring Engine ("The Auctioneer") ───────────────────────────────
+//
+// totalScore starts at baseCpm.
+// Context multipliers are applied multiplicatively.
+// Each matching affinity tag adds a flat +10 bonus.
+// Only ads where baseCpm <= incomingBid enter the auction.
+// Winner = highest totalScore among eligible ads.
+
+function scoreAd(
+  ad: (typeof AD_BANK)[number],
+  ctx: ScoringContext,
+  contextTags: Set<string>,
+): number {
+  let score = ad.baseCpm; // base score = CPM floor
+
+  // ── Contextual multipliers ────────────────────────────────────────────────
+  if (ctx.weather === "rainy") {
+    score *= ad.bidMultipliers.rain;
+  }
+
+  if (parseInt(ctx.battery, 10) < 20) {
+    score *= ad.bidMultipliers.lowBattery;
+  }
+
+  const isWeekend = contextTags.has("weekend");
+  if (isWeekend) {
+    score *= ad.bidMultipliers.weekend;
+  }
+
+  // ── Affinity matching: +10 per matching tag ────────────────────────────────
+  for (const affinity of ad.targetAffinities) {
+    if (contextTags.has(affinity)) {
+      score += 10;
+    }
+  }
+
+  return score;
+}
+
+// ─── VAST Builder ─────────────────────────────────────────────────────────────
+
+function buildVAST(
+  videoUrl: string,
+  brand: string,
+  cpm: number,
+  carMake: string,
+  ctx: { venue: string; msrp: string; dwell: string; battery: string; weather: string; time: string; traffic: string },
+  conversionType?: string,
+  conversionValue?: string,
+  qrCodeUrl?: string,
+): string {
+  const base       = "https://ads.videoev.com/api/track";
+  const b          = encodeURIComponent(brand);
+  const brandSlug  = brand.toUpperCase().replace(/[^A-Z0-9]/g, "-");
+  const vehicleSlug = (carMake || "UNKNOWN").toUpperCase();
+  const universalId = `VEV-${brandSlug}-${vehicleSlug}-001`;
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <VAST version="4.0" xmlns:xs="http://www.w3.org/2001/XMLSchema">
   <Ad id="videoev-${Date.now()}" sequence="1">
     <InLine>
       <AdSystem version="1.0">VideoEV AdCP</AdSystem>
       <AdTitle>${brand} — VideoEV Network</AdTitle>
-      <Error><![CDATA[${base}?event=error&code=[ERRORCODE]&brand=${b}]]></Error>
-      <Impression id="imp1"><![CDATA[${base}?event=impression&brand=${b}&cpm=${cpm}]]></Impression>
+      <Pricing model="cpm" currency="USD"><![CDATA[${cpm}]]></Pricing>
+      <Error><![CDATA[${base}?event=error&code=[ERRORCODE]&brand=${b}&cb=[CACHEBUSTING]]]></Error>
+      <Impression id="imp1"><![CDATA[${base}?event=impression&brand=${b}&cpm=${cpm}&cb=[CACHEBUSTING]&ts=[TIMESTAMP]]]></Impression>
       <Creatives>
         <Creative id="1" sequence="1">
           <UniversalAdId idRegistry="VideoEV">${universalId}</UniversalAdId>
           <Linear>
             <Duration>00:00:30</Duration>
             <TrackingEvents>
-              <Tracking event="start"><![CDATA[${base}?event=start&brand=${b}]]></Tracking>
-              <Tracking event="firstQuartile"><![CDATA[${base}?event=q1&brand=${b}]]></Tracking>
-              <Tracking event="midpoint"><![CDATA[${base}?event=midpoint&brand=${b}]]></Tracking>
-              <Tracking event="thirdQuartile"><![CDATA[${base}?event=q3&brand=${b}]]></Tracking>
-              <Tracking event="complete"><![CDATA[${base}?event=complete&brand=${b}]]></Tracking>
+              <Tracking event="start"><![CDATA[${base}?event=start&brand=${b}&cb=[CACHEBUSTING]&ts=[TIMESTAMP]]]></Tracking>
+              <Tracking event="firstQuartile"><![CDATA[${base}?event=q1&brand=${b}&cb=[CACHEBUSTING]&ts=[TIMESTAMP]]]></Tracking>
+              <Tracking event="midpoint"><![CDATA[${base}?event=midpoint&brand=${b}&cb=[CACHEBUSTING]&ts=[TIMESTAMP]]]></Tracking>
+              <Tracking event="thirdQuartile"><![CDATA[${base}?event=q3&brand=${b}&cb=[CACHEBUSTING]&ts=[TIMESTAMP]]]></Tracking>
+              <Tracking event="complete"><![CDATA[${base}?event=complete&brand=${b}&cb=[CACHEBUSTING]&ts=[TIMESTAMP]]]></Tracking>
             </TrackingEvents>
             <MediaFiles>
               <MediaFile id="mf1" delivery="progressive" type="video/mp4"
@@ -96,12 +212,20 @@ function buildVAST(videoUrl: string, brand: string, cpm: number, ctx: { venue: s
           <Brand>${brand}</Brand>
           <CPM>${cpm}</CPM>
           <Network>VideoEV AdCP</Network>
-          <VenueType>${ctx.venue}</VenueType>
-          <MSRPProxy>${ctx.msrp}</MSRPProxy>
-          <EstDwellTime>${ctx.dwell} mins</EstDwellTime>
-          <Weather>${ctx.weather}</Weather>
-          <TimeOfDay>${ctx.time}</TimeOfDay>
-          <TrafficDensity>${ctx.traffic}</TrafficDensity>
+          <PlacementContext>
+            <VenueType>${ctx.venue}</VenueType>
+            <MSRPProxy>${ctx.msrp}</MSRPProxy>
+            <EstDwellTime>${ctx.dwell} mins</EstDwellTime>
+            <Battery>${ctx.battery}</Battery>
+            <Weather>${ctx.weather}</Weather>
+            <TimeOfDay>${ctx.time}</TimeOfDay>
+            <TrafficDensity>${ctx.traffic}</TrafficDensity>
+          </PlacementContext>
+          <Conversion>
+            <Type>${conversionType ?? "Lead_Gen"}</Type>
+            <Value><![CDATA[${conversionValue ?? ""}]]></Value>
+            <QRCodeUrl><![CDATA[${qrCodeUrl ?? ""}]]></QRCodeUrl>
+          </Conversion>
         </Extension>
       </Extensions>
     </InLine>
@@ -109,64 +233,93 @@ function buildVAST(videoUrl: string, brand: string, cpm: number, ctx: { venue: s
 </VAST>`;
 }
 
+// ─── Route Handlers ───────────────────────────────────────────────────────────
+
+export async function OPTIONS(req: NextRequest) {
+  return new NextResponse(null, {
+    status: 204,
+    headers: corsHeaders(req.headers.get("origin")),
+  });
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
-  const carMake  = searchParams.get("car_make")?.toLowerCase() ?? "";
-  const location = searchParams.get("location")?.toLowerCase() ?? "highway";
-  const battery  = searchParams.get("battery") ?? "80";
-  const venue    = searchParams.get("venue") ?? "luxury_retail";
-  const msrp     = searchParams.get("msrp") ?? "120k+";
-  const dwell    = searchParams.get("dwell") ?? "45";
-  const weather  = searchParams.get("weather") ?? "sunny";
-  const time     = searchParams.get("time") ?? "morning";
-  const traffic  = searchParams.get("traffic") ?? "low";
-  const ctx = { venue, msrp, dwell, weather, time, traffic };
+  const origin     = req.headers.get("origin");
+  const carMake    = searchParams.get("car_make")?.toLowerCase() ?? "";
+  const location   = searchParams.get("location")?.toLowerCase() ?? "highway";
+  const battery    = searchParams.get("battery") ?? "80";
+  const venue      = searchParams.get("venue") ?? "luxury_retail";
+  const msrp       = searchParams.get("msrp") ?? "120k+";
+  const dwell      = searchParams.get("dwell") ?? "45";
+  const weather    = searchParams.get("weather") ?? "sunny";
+  const time       = searchParams.get("time") ?? "morning";
+  const traffic    = searchParams.get("traffic") ?? "low";
+  const incomingBid = parseFloat(searchParams.get("current_bid") ?? "200");
 
-  // ── Rule 0: Weather ────────────────────────────────────────────────────────
-  // Rainy day → comfort/warmth intent spike → Starbucks
-  if (weather === "rainy") {
-    console.log(`[AdCP Rules] WEATHER — rainy signal. Overriding to ${RAINY_DAY_AD.brand}.`);
-    return new NextResponse(buildVAST(RAINY_DAY_AD.s3Url, RAINY_DAY_AD.brand, RAINY_DAY_AD.cpm, ctx), {
-      status: 200,
-      headers: { "Content-Type": "text/xml; charset=utf-8", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" },
-    });
-  }
+  const ctx: ScoringContext = { carMake, location, battery, venue, msrp, dwell, weather, time, traffic };
+  const vastCtx = { venue, msrp, dwell, battery, weather, time, traffic };
 
-  // ── Rule 1: Brand Safety ────────────────────────────────────────────────────
-  // School zone overrides all — serve family-friendly creative regardless of vehicle
+  const responseHeaders = {
+    "Content-Type": "text/xml; charset=utf-8",
+    "Cache-Control": "no-store",
+    ...corsHeaders(origin),
+  };
+
+  // ── Rule 0: Brand Safety — school zone ───────────────────────────────────
   if (location === "school") {
-    console.log(`[AdCP Rules] BRAND SAFETY — school zone detected. Overriding to ${SCHOOL_ZONE_AD.brand}.`);
-    return new NextResponse(buildVAST(SCHOOL_ZONE_AD.s3Url, SCHOOL_ZONE_AD.brand, SCHOOL_ZONE_AD.cpm, ctx), {
-      status: 200,
-      headers: { "Content-Type": "text/xml; charset=utf-8", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" },
-    });
+    console.log(`[AdCP] BRAND SAFETY — school zone. Serving ${SCHOOL_ZONE_AD.brand}.`);
+    return new NextResponse(
+      buildVAST(SCHOOL_ZONE_AD.s3Url, SCHOOL_ZONE_AD.brand, SCHOOL_ZONE_AD.cpm, carMake, vastCtx),
+      { status: 200, headers: responseHeaders },
+    );
   }
 
-  // ── Rule 2: Contextual Intent ───────────────────────────────────────────────
-  // Low battery → driver is anxious and waiting → QSR/food intent spike
-  if (battery === "15") {
-    console.log(`[AdCP Rules] CONTEXT — low battery signal. Overriding to ${LOW_BATTERY_AD.brand}.`);
-    return new NextResponse(buildVAST(LOW_BATTERY_AD.s3Url, LOW_BATTERY_AD.brand, LOW_BATTERY_AD.cpm, ctx), {
-      status: 200,
-      headers: { "Content-Type": "text/xml; charset=utf-8", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" },
-    });
+  // ── The Auctioneer — Weighted Scoring Engine ──────────────────────────────
+  const contextTags = buildContextTags(ctx);
+
+  // Eligible pool: only ads where baseCpm fits within the incoming bid
+  const eligible = AD_BANK.filter(ad => ad.baseCpm <= incomingBid);
+
+  if (eligible.length > 0) {
+    // Score each eligible ad
+    const scored = eligible
+      .map(ad => ({ ad, score: scoreAd(ad, ctx, contextTags) }))
+      .sort((a, b) => b.score - a.score);
+
+    const { ad: winner, score } = scored[0];
+
+    console.log(
+      `[AdCP Auctioneer] Winner: ${winner.brand} (${winner.sector}) ` +
+      `score=${score.toFixed(2)} baseCpm=${winner.baseCpm} ` +
+      `affinityHits=${winner.targetAffinities.filter(t => contextTags.has(t)).length} ` +
+      `car=${carMake} msrp=${msrp} weather=${weather} battery=${battery} bid=${incomingBid}`,
+    );
+
+    return new NextResponse(
+      buildVAST(
+        winner.videoUrl,
+        winner.brand,
+        winner.baseCpm,
+        carMake,
+        vastCtx,
+        winner.conversion.type,
+        winner.conversion.value,
+        winner.qrCodeUrl,
+      ),
+      { status: 200, headers: responseHeaders },
+    );
   }
 
-  // ── Default: Vehicle-based targeting ───────────────────────────────────────
-  const ad = AD_MAP[carMake] ?? (() => {
-    console.log(`[AdCP Agent] No direct match for "${carMake}" — running bid auction...`);
-    console.log(`[AdCP Agent] Evaluating 12 DSPs... highest bid: $${FALLBACK.cpm} CPM from ${FALLBACK.brand}`);
+  // ── Fallback: vehicle-based targeting (no eligible AD_BANK ads) ───────────
+  const legacyAd = AD_MAP[carMake] ?? (() => {
+    console.log(`[AdCP Fallback] No match for "${carMake}" — defaulting to ${FALLBACK.brand}`);
     return FALLBACK;
   })();
 
-  console.log(`[AdCP Decision] car_make=${carMake} → brand=${ad.brand} CPM=$${ad.cpm} venue=${venue} msrp=${msrp} dwell=${dwell}`);
+  console.log(`[AdCP Fallback] car=${carMake} → brand=${legacyAd.brand} cpm=${legacyAd.cpm}`);
 
-  return new NextResponse(buildVAST(ad.s3Url, ad.brand, ad.cpm, ctx), {
-    status: 200,
-    headers: {
-      "Content-Type": "text/xml; charset=utf-8",
-      "Cache-Control": "no-store",
-      "Access-Control-Allow-Origin": "*",
-    },
-  });
+  return new NextResponse(
+    buildVAST(legacyAd.s3Url, legacyAd.brand, legacyAd.cpm, carMake, vastCtx),
+    { status: 200, headers: responseHeaders },
+  );
 }
