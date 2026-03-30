@@ -8,7 +8,7 @@ const VideoAd = dynamic(() => import("@/components/ImaPlayer"), { ssr: false });
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type Stage = "start" | "connect" | "auth" | "initiating" | "starting" | "charging" | "complete";
-type AdPhase = "warmup" | "display" | "video_1" | "video_2";
+type AdPhase = "warmup" | "display" | "video_1a" | "video_1b" | "video_2a" | "video_2b" | "video_3a" | "video_3b";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -543,6 +543,7 @@ export default function KioskPage() {
   const [displayIdx, setDisplayIdx] = useState(0);
   const [hit1, setHit1] = useState(false);
   const [hit2, setHit2] = useState(false);
+  const [hit3, setHit3] = useState(false);
   const [completionStarted, setCompletionStarted] = useState(false);
   const [carMake, setCarMake] = useState("porsche");
   const [locationCtx, setLocationCtx] = useState<"highway" | "urban" | "suburban" | "shopping" | "airport" | "stadium" | "hospital" | "office_park" | "school">("highway");
@@ -566,7 +567,8 @@ export default function KioskPage() {
   const videoAds = VIDEO_ADS[vehicle.make.toLowerCase()] ?? FALLBACK_ADS;
   const range = vehicle.target - vehicle.start;
   const trigger1 = vehicle.start + range * 0.35;
-  const trigger2 = vehicle.start + range * 0.70;
+  const trigger2 = vehicle.start + range * 0.55;
+  const trigger3 = vehicle.start + range * 0.75;
 
   const cost = (kwh * vehicle.rate).toFixed(2);
   const remaining = Math.max(0, Math.ceil((vehicle.target - battery) / CHARGE_RATE / 60));
@@ -583,6 +585,7 @@ export default function KioskPage() {
     setDisplayIdx(0);
     setHit1(false);
     setHit2(false);
+    setHit3(false);
     setCompletionStarted(false);
   }
 
@@ -678,34 +681,49 @@ export default function KioskPage() {
     return () => clearTimeout(id);
   }, [stage, adPhase]);
 
-  // Video triggers based on battery milestones
+  // Video triggers based on battery milestones (3 pods)
   useEffect(() => {
     if (stage !== "charging" || adPhase !== "display") return;
     if (!hit1 && battery >= trigger1) {
       setHit1(true);
-      setAdPhase("video_1");
+      setAdPhase("video_1a");
     } else if (hit1 && !hit2 && battery >= trigger2) {
       setHit2(true);
-      setAdPhase("video_2");
+      setAdPhase("video_2a");
+    } else if (hit2 && !hit3 && battery >= trigger3) {
+      setHit3(true);
+      setAdPhase("video_3a");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battery, stage, adPhase]);
 
-  // Display ad rotation every 12 seconds
+  // Display ad rotation every 20 seconds
   useEffect(() => {
     if (stage !== "charging" || adPhase !== "display") return;
-    const id = setInterval(() => setDisplayIdx(i => (i + 1) % DISPLAY_ADS.length), 12000);
+    const id = setInterval(() => setDisplayIdx(i => (i + 1) % DISPLAY_ADS.length), 20000);
     return () => clearInterval(id);
   }, [stage, adPhase]);
 
   function onVideoEnded() {
-    if (adPhase === "video_1" || adPhase === "video_2") setAdPhase("display");
+    if (adPhase === "video_1a") setAdPhase("video_1b");
+    else if (adPhase === "video_1b") setAdPhase("display");
+    else if (adPhase === "video_2a") setAdPhase("video_2b");
+    else if (adPhase === "video_2b") setAdPhase("display");
+    else if (adPhase === "video_3a") setAdPhase("video_3b");
+    else if (adPhase === "video_3b") setAdPhase("display");
   }
 
   const displayAd = DISPLAY_ADS[displayIdx];
-  const currentVideoAd = adPhase === "video_1" ? videoAds[0] : videoAds[1];
+  const currentVideoAd =
+    adPhase === "video_1a" ? videoAds[0] :
+    adPhase === "video_1b" ? FALLBACK_ADS[0] :
+    adPhase === "video_2a" ? videoAds[1] :
+    adPhase === "video_2b" ? FALLBACK_ADS[1] :
+    adPhase === "video_3a" ? FALLBACK_ADS[2] :
+    adPhase === "video_3b" ? videoAds[0] :
+    videoAds[0];
   const completionVideoAd = videoAds[2];
-  const isVideoPhase = adPhase === "video_1" || adPhase === "video_2";
+  const isVideoPhase = adPhase.startsWith("video_");
   const sessionMin = Math.floor(elapsed / 60);
 
   const clock = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
