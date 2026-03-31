@@ -44,9 +44,9 @@ function extractSubdomain(host: string): string {
   return labels[0];                    // ads.videoev.com → "ads"
 }
 
-// ─── Middleware ───────────────────────────────────────────────────────────────
+// ─── Proxy (Next.js 16 — was "middleware" in earlier versions) ───────────────
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const url      = request.nextUrl.clone();
   const hostname = request.headers.get("host") ?? "";
 
