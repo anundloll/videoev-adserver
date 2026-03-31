@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { AD_BANK } from "@/lib/ad-generator";
+import { prisma } from "@/lib/prisma";
+import { AD_BANK } from "@/lib/ad-generator"; // kept as static fallback pool
 
 const S3 = "https://videoev.s3.us-east-1.amazonaws.com";
 
@@ -177,33 +178,33 @@ function buildVAST(
   const brandSlug  = brand.toUpperCase().replace(/[^A-Z0-9]/g, "-");
   const vehicleSlug = (carMake || "UNKNOWN").toUpperCase();
   const universalId = `VEV-${brandSlug}-${vehicleSlug}-001`;
+  const cb         = Date.now().toString();
+  const ts         = new Date().toISOString();
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <VAST version="4.0" xmlns:xs="http://www.w3.org/2001/XMLSchema">
-  <Ad id="videoev-${Date.now()}" sequence="1">
+  <Ad id="videoev-${cb}" sequence="1">
     <InLine>
       <AdSystem version="1.0">VideoEV AdCP</AdSystem>
       <AdTitle>${brand} — VideoEV Network</AdTitle>
       <Pricing model="cpm" currency="USD"><![CDATA[${cpm}]]></Pricing>
-      <Error><![CDATA[${base}?event=error&code=[ERRORCODE]&brand=${b}&cb=[CACHEBUSTING]]]></Error>
-      <Impression id="imp1"><![CDATA[${base}?event=impression&brand=${b}&cpm=${cpm}&cb=[CACHEBUSTING]&ts=[TIMESTAMP]]]></Impression>
+      <Error><![CDATA[${base}?event=error&code=900&brand=${b}&cb=${cb}]]></Error>
+      <Impression id="imp1"><![CDATA[${base}?event=impression&brand=${b}&cpm=${cpm}&cb=${cb}&ts=${ts}]]></Impression>
       <Creatives>
         <Creative id="1" sequence="1">
           <UniversalAdId idRegistry="VideoEV">${universalId}</UniversalAdId>
           <Linear>
             <Duration>00:00:30</Duration>
             <TrackingEvents>
-              <Tracking event="start"><![CDATA[${base}?event=start&brand=${b}&cb=[CACHEBUSTING]&ts=[TIMESTAMP]]]></Tracking>
-              <Tracking event="firstQuartile"><![CDATA[${base}?event=q1&brand=${b}&cb=[CACHEBUSTING]&ts=[TIMESTAMP]]]></Tracking>
-              <Tracking event="midpoint"><![CDATA[${base}?event=midpoint&brand=${b}&cb=[CACHEBUSTING]&ts=[TIMESTAMP]]]></Tracking>
-              <Tracking event="thirdQuartile"><![CDATA[${base}?event=q3&brand=${b}&cb=[CACHEBUSTING]&ts=[TIMESTAMP]]]></Tracking>
-              <Tracking event="complete"><![CDATA[${base}?event=complete&brand=${b}&cb=[CACHEBUSTING]&ts=[TIMESTAMP]]]></Tracking>
+              <Tracking event="start"><![CDATA[${base}?event=start&brand=${b}&cb=${cb}&ts=${ts}]]></Tracking>
+              <Tracking event="firstQuartile"><![CDATA[${base}?event=q1&brand=${b}&cb=${cb}&ts=${ts}]]></Tracking>
+              <Tracking event="midpoint"><![CDATA[${base}?event=midpoint&brand=${b}&cb=${cb}&ts=${ts}]]></Tracking>
+              <Tracking event="thirdQuartile"><![CDATA[${base}?event=q3&brand=${b}&cb=${cb}&ts=${ts}]]></Tracking>
+              <Tracking event="complete"><![CDATA[${base}?event=complete&brand=${b}&cb=${cb}&ts=${ts}]]></Tracking>
             </TrackingEvents>
             <MediaFiles>
               <MediaFile id="mf1" delivery="progressive" type="video/mp4"
-                width="1920" height="1080" scalable="true" maintainAspectRatio="true">
-                <![CDATA[${videoUrl}]]>
-              </MediaFile>
+                width="1920" height="1080" scalable="true" maintainAspectRatio="true"><![CDATA[${videoUrl}]]></MediaFile>
             </MediaFiles>
           </Linear>
         </Creative>
@@ -280,9 +281,42 @@ export async function GET(req: NextRequest) {
 
   // ── The Auctioneer — Weighted Scoring Engine ──────────────────────────────
   const contextTags = buildContextTags(ctx);
+  const QR_BASE = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://videoev.com/conversion/";
 
-  // Eligible pool: only ads where baseCpm fits within the incoming bid
-  const eligible = AD_BANK.filter(ad => ad.baseCpm <= incomingBid);
+  // ── 1. Try the live database first ───────────────────────────────────────
+  let dbEligible: ReturnType<typeof AD_BANK.filter> = [];
+  try {
+    const dbCampaigns = await prisma.campaign.findMany({
+      where: { isActive: true },
+    });
+
+    // Shape DB rows into the same ad object the scoring engine expects
+    const dbAds = dbCampaigns.map((c: (typeof dbCampaigns)[number]) => {
+      const rules = c.targetingRules as {
+        bidMultipliers?: { rain: number; lowBattery: number; weekend: number };
+        targetAffinities?: string[];
+      };
+      return {
+        id:               c.id,
+        brand:            c.brandName,
+        sector:           c.sector,
+        baseCpm:          c.baseCpm,
+        bidMultipliers:   rules.bidMultipliers  ?? { rain: 1.0, lowBattery: 1.0, weekend: 1.0 },
+        conversion:       { type: c.conversionType as "QR_Discount" | "Lead_Gen" | "App_Install", value: c.ctaCopy },
+        qrCodeUrl:        `${QR_BASE}${c.id}`,
+        targetAffinities: rules.targetAffinities ?? [],
+        videoUrl:         c.videoUrl,
+      };
+    });
+
+    dbEligible = dbAds.filter((ad: (typeof dbAds)[number]) => ad.baseCpm <= incomingBid);
+  } catch (err) {
+    console.warn("[AdCP] DB unavailable — falling through to static AD_BANK:", (err as Error).message);
+  }
+
+  // ── 2. Merge DB campaigns with static AD_BANK; DB entries take priority ──
+  const staticEligible = AD_BANK.filter(ad => ad.baseCpm <= incomingBid);
+  const eligible = dbEligible.length > 0 ? dbEligible : staticEligible;
 
   if (eligible.length > 0) {
     // Score each eligible ad
@@ -320,7 +354,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // ── Fallback: vehicle-based targeting (no eligible AD_BANK ads) ───────────
+  // ── 3. Hard fallback: vehicle-based targeting (no eligible ads at all) ────
   const legacyAd = AD_MAP[carMake] ?? (() => {
     console.log(`[AdCP Fallback] No match for "${carMake}" — defaulting to ${FALLBACK.brand}`);
     return FALLBACK;
