@@ -288,7 +288,10 @@ export async function GET(req: NextRequest) {
 
   // ── The Auctioneer — Weighted Scoring Engine ──────────────────────────────
   const contextTags = buildContextTags(ctx);
-  const QR_BASE = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://videoev.com/conversion/";
+  // QR destination routes through our tracking redirect (/api/qr) before landing on brand page.
+  // api.qrserver.com just renders the QR image — the encoded URL is the redirect endpoint.
+  const TRACKING_REDIRECT_BASE = "https://ads.videoev.com/api/qr?cid=";
+  const QR_BASE = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(TRACKING_REDIRECT_BASE)}`;
 
   // ── 1. Try the live database first ───────────────────────────────────────
   let dbEligible: ReturnType<typeof AD_BANK.filter> = [];
