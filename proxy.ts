@@ -14,11 +14,12 @@ import { NextRequest, NextResponse } from "next/server";
 // what the rewrite points to.
 
 const SUBDOMAIN_PREFIX: Record<string, string> = {
-  ads:      "adserver",
-  data:     "data",
-  demo:     "demo",
-  "":       "marketing", // bare domain  videoev.com  or  localhost
-  www:      "marketing",
+  ads:  "adserver",                   // ads.videoev.com  → ad server
+  data: "data",                       // data.videoev.com → analytics
+  demo: "demo",                       // demo.videoev.com → CPO demo
+  mc:   "marketing/mission-control",  // mc.videoev.com   → internal dashboard
+  "":   "marketing",                  // videoev.com      → public landing page
+  www:  "marketing",                  // www.videoev.com  → public landing page
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

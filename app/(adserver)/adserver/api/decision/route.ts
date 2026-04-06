@@ -172,6 +172,7 @@ function buildVAST(
   conversionValue?: string,
   qrCodeUrl?: string,
   score?: number,
+  campaignId?: string,         // DB UUID — enables atomic spend tracking
 ): string {
   const base       = "https://ads.videoev.com/api/track";
   const b          = encodeURIComponent(brand);
@@ -180,6 +181,7 @@ function buildVAST(
   const universalId = `VEV-${brandSlug}-${vehicleSlug}-001`;
   const cb         = Date.now().toString();
   const ts         = new Date().toISOString();
+  const cid        = campaignId ? `&campaign_id=${encodeURIComponent(campaignId)}` : "";
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <VAST version="4.0" xmlns:xs="http://www.w3.org/2001/XMLSchema">
@@ -188,23 +190,24 @@ function buildVAST(
       <AdSystem version="1.0">VideoEV AdCP</AdSystem>
       <AdTitle>${brand} — VideoEV Network</AdTitle>
       <Pricing model="cpm" currency="USD"><![CDATA[${cpm}]]></Pricing>
-      <Error><![CDATA[${base}?event=error&code=900&brand=${b}&cb=${cb}]]></Error>
-      <Impression id="imp1"><![CDATA[${base}?event=impression&brand=${b}&cpm=${cpm}&cb=${cb}&ts=${ts}]]></Impression>
+      <Error><![CDATA[${base}?event=error&code=900&brand=${b}&cb=${cb}${cid}]]></Error>
+      <Impression id="imp1"><![CDATA[${base}?event=impression&brand=${b}&cpm=${cpm}&cb=${cb}&ts=${ts}${cid}]]></Impression>
       <Creatives>
         <Creative id="1" sequence="1">
           <UniversalAdId idRegistry="VideoEV">${universalId}</UniversalAdId>
           <Linear>
             <Duration>00:00:30</Duration>
             <TrackingEvents>
-              <Tracking event="start"><![CDATA[${base}?event=start&brand=${b}&cb=${cb}&ts=${ts}]]></Tracking>
-              <Tracking event="firstQuartile"><![CDATA[${base}?event=q1&brand=${b}&cb=${cb}&ts=${ts}]]></Tracking>
-              <Tracking event="midpoint"><![CDATA[${base}?event=midpoint&brand=${b}&cb=${cb}&ts=${ts}]]></Tracking>
-              <Tracking event="thirdQuartile"><![CDATA[${base}?event=q3&brand=${b}&cb=${cb}&ts=${ts}]]></Tracking>
-              <Tracking event="complete"><![CDATA[${base}?event=complete&brand=${b}&cb=${cb}&ts=${ts}]]></Tracking>
+              <Tracking event="start"><![CDATA[${base}?event=start&brand=${b}&cb=${cb}&ts=${ts}${cid}]]></Tracking>
+              <Tracking event="firstQuartile"><![CDATA[${base}?event=q1&brand=${b}&cb=${cb}&ts=${ts}${cid}]]></Tracking>
+              <Tracking event="midpoint"><![CDATA[${base}?event=midpoint&brand=${b}&cb=${cb}&ts=${ts}${cid}]]></Tracking>
+              <Tracking event="thirdQuartile"><![CDATA[${base}?event=q3&brand=${b}&cb=${cb}&ts=${ts}${cid}]]></Tracking>
+              <Tracking event="complete"><![CDATA[${base}?event=complete&brand=${b}&cpm=${cpm}&cb=${cb}&ts=${ts}${cid}]]></Tracking>
             </TrackingEvents>
             <MediaFiles>
-              <MediaFile id="mf1" delivery="progressive" type="video/mp4"
-                width="1920" height="1080" scalable="true" maintainAspectRatio="true"><![CDATA[${videoUrl}]]></MediaFile>
+                <MediaFile id="mf1" delivery="progressive" type="video/mp4"
+                width="1920" height="1080" scalable="true" maintainAspectRatio="true"
+                audioEnabled="true"><![CDATA[${videoUrl}]]></MediaFile>
             </MediaFiles>
           </Linear>
         </Creative>
@@ -224,6 +227,10 @@ function buildVAST(
             <TimeOfDay>${ctx.time}</TimeOfDay>
             <TrafficDensity>${ctx.traffic}</TrafficDensity>
           </PlacementContext>
+          <Audio>
+            <Enabled>true</Enabled>
+            <AutoplayWithSound>true</AutoplayWithSound>
+          </Audio>
           <Conversion>
             <Type>${conversionType ?? "Lead_Gen"}</Type>
             <Value><![CDATA[${conversionValue ?? ""}]]></Value>
@@ -305,7 +312,10 @@ export async function GET(req: NextRequest) {
         conversion:       { type: c.conversionType as "QR_Discount" | "Lead_Gen" | "App_Install", value: c.ctaCopy },
         qrCodeUrl:        `${QR_BASE}${c.id}`,
         targetAffinities: rules.targetAffinities ?? [],
-        videoUrl:         c.videoUrl,
+        // Prefer Vercel Blob-uploaded creative over the legacy manual URL.
+        // creativeUrl is written by the upload handler the moment the file lands;
+        // all subdomains (data.*, ads.*, mc.*) read it from the same Neon row.
+        videoUrl:         (c as typeof c & { creativeUrl?: string | null }).creativeUrl ?? c.videoUrl,
       };
     });
 
@@ -349,6 +359,7 @@ export async function GET(req: NextRequest) {
         winner.conversion.value,
         winner.qrCodeUrl,
         score,
+        winner.id,            // pass DB UUID so tracking can increment spend
       ),
       { status: 200, headers: responseHeaders },
     );

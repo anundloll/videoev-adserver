@@ -1,8 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+import { useState, useEffect, useCallback } from "react";
 
 interface Props {
   maskedDb:  string;
@@ -12,299 +10,423 @@ interface Props {
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
-const NAV_CARDS = [
+const ENDPOINTS = [
   {
-    label:       "Campaign Admin",
-    description: "Create, configure & inspect live auction campaigns.",
-    href:        "https://ads.videoev.com/admin/campaigns",
-    accent:      "teal",
-    icon:        "⚡",
-    badge:       "Live",
+    label: "Ad Decision",
+    url:   "https://ads.videoev.com/api/decision",
+    note:  "VAST 4.0 — accepts 9 targeting signals, returns winning creative",
   },
   {
-    label:       "Client Analytics",
-    description: "Publisher & advertiser attribution dashboard.",
-    href:        "https://data.videoev.com",
-    accent:      "violet",
-    icon:        "📊",
-    badge:       "Coming Soon",
+    label: "Attribution Pixel",
+    url:   "https://ads.videoev.com/api/track",
+    note:  "1×1 GIF — impression · start · complete · qr_scan",
   },
   {
-    label:       "CPO Demo Plugin",
-    description: "Embeddable kiosk plugin for prospective partners.",
-    href:        "https://ads.videoev.com/plugin/demo",
-    accent:      "amber",
-    icon:        "🎬",
-    badge:       "Demo",
+    label: "Campaigns API",
+    url:   "https://ads.videoev.com/admin/api/campaigns",
+    note:  "GET list / POST create — writes to Neon Campaign table",
+  },
+  {
+    label: "VAST Test Call",
+    url:   "https://ads.videoev.com/api/decision?car_make=tesla&msrp=120k%2B&battery=80&weather=sunny&venue=luxury_retail&location=suburban&dwell=45&time=morning&traffic=low",
+    note:  "Live sample — Tesla · suburban · luxury retail · sunny",
   },
 ] as const;
 
-const API_ENDPOINTS = [
-  {
-    label:       "Ad Decision",
-    url:         "https://ads.videoev.com/api/decision",
-    description: "VAST 4.0 — accepts targeting signals, returns winning creative",
-  },
-  {
-    label:       "Attribution Pixel",
-    url:         "https://ads.videoev.com/api/track",
-    description: "1×1 GIF — fires impression, start, complete, qr_scan events",
-  },
-  {
-    label:       "Campaigns API",
-    url:         "https://ads.videoev.com/admin/api/campaigns",
-    description: "GET list / POST create — reads & writes Neon Campaign table",
-  },
-  {
-    label:       "VAST Sample",
-    url:         "https://ads.videoev.com/api/decision?car_make=tesla&msrp=120k%2B&battery=80&weather=sunny&venue=luxury_retail&location=suburban&dwell=45&time=morning&traffic=low",
-    description: "Live test call — Tesla, suburban, luxury retail, sunny",
-  },
+const INFRA = [
+  { label: "Vercel",        sub: "Deployments · Logs",    href: "https://vercel.com/arvin-nundlolls-projects/videoev-adserver" },
+  { label: "Neon Database", sub: "neondb · us-east-1",    href: "https://console.neon.tech" },
+  { label: "Prisma Studio", sub: "localhost:5555",         href: "http://localhost:5555" },
+  { label: "Ad Sandbox",    sub: "Kiosk + VAST debugger",  href: "https://ads.videoev.com" },
+  { label: "Platform Docs", sub: "Master README · all domains", href: "/marketing/mission-control/docs" },
 ] as const;
 
-const INFRA_LINKS = [
-  {
-    label:    "Vercel Dashboard",
-    href:     "https://vercel.com/arvin-nundlolls-projects/videoev-adserver",
-    sublabel: "Deployments · Logs · Env Vars",
-    icon:     "▲",
-  },
-  {
-    label:    "Neon Console",
-    href:     "https://console.neon.tech",
-    sublabel: "neondb · us-east-1 · Postgres",
-    icon:     "🐘",
-  },
-  {
-    label:    "Prisma Studio",
-    href:     "http://localhost:5555",
-    sublabel: "Run: npx prisma studio",
-    icon:     "🔷",
-  },
-  {
-    label:    "Ad Server Sandbox",
-    href:     "https://ads.videoev.com",
-    sublabel: "Live kiosk + VAST debugger",
-    icon:     "📺",
-  },
-] as const;
+// ─── Micro-components ─────────────────────────────────────────────────────────
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-
-  function handleCopy() {
+function CopyButton({ text, compact }: { text: string; compact?: boolean }) {
+  const [state, setState] = useState<"idle" | "copied">("idle");
+  function copy() {
     navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setState("copied");
+      setTimeout(() => setState("idle"), 1800);
     });
   }
-
+  if (compact) {
+    return (
+      <button
+        onClick={copy}
+        className={`text-[10px] font-medium px-2 py-0.5 rounded transition-all ${
+          state === "copied"
+            ? "text-teal-300"
+            : "text-slate-600 hover:text-slate-300"
+        }`}
+      >
+        {state === "copied" ? "✓" : "copy"}
+      </button>
+    );
+  }
   return (
     <button
-      onClick={handleCopy}
-      className={`shrink-0 text-[11px] font-medium px-2.5 py-1 rounded transition-all ${
-        copied
-          ? "bg-teal-500/20 text-teal-300 border border-teal-500/40"
-          : "bg-slate-800 text-slate-400 border border-slate-700 hover:text-white hover:border-slate-500"
+      onClick={copy}
+      className={`shrink-0 text-[11px] font-medium px-2.5 py-1 rounded border transition-all ${
+        state === "copied"
+          ? "bg-teal-500/10 text-teal-300 border-teal-500/30"
+          : "text-slate-500 border-slate-700 hover:text-white hover:border-slate-500"
       }`}
     >
-      {copied ? "✓ Copied" : "Copy"}
+      {state === "copied" ? "✓ Copied" : "Copy"}
     </button>
   );
 }
 
-function Clock() {
-  const [time, setTime] = useState("");
-
+function LiveClock() {
+  const [t, setT] = useState("");
   useEffect(() => {
-    function tick() {
-      setTime(
-        new Date().toLocaleTimeString("en-US", {
-          hour:   "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-          hour12: false,
-        })
-      );
-    }
+    const tick = () =>
+      setT(new Date().toLocaleTimeString("en-US", { hour12: false }));
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, []);
-
-  return <span className="num tabular-nums">{time}</span>;
+  return <span className="tabular-nums">{t}</span>;
 }
 
-const ENV_STYLE: Record<string, string> = {
-  production: "bg-teal-500/15 text-teal-300 border-teal-500/30",
-  preview:    "bg-amber-500/15 text-amber-300 border-amber-500/30",
-  local:      "bg-slate-700/50 text-slate-300 border-slate-600",
-};
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-const ACCENT_CARD: Record<string, string> = {
-  teal:   "hover:border-teal-500/50 hover:shadow-teal-900/30",
-  violet: "hover:border-violet-500/50 hover:shadow-violet-900/30",
-  amber:  "hover:border-amber-500/50 hover:shadow-amber-900/30",
-};
+interface Campaign {
+  id:             string;
+  brandName:      string;
+  sector:         string;
+  baseCpm:        number;
+  isActive:       boolean;
+  conversionType: string;
+  createdAt:      string;
+  _count:         { trackingEvents: number };
+}
 
-const ACCENT_BADGE: Record<string, string> = {
-  teal:   "bg-teal-500/15 text-teal-300",
-  violet: "bg-violet-500/15 text-violet-300",
-  amber:  "bg-amber-500/15 text-amber-300",
-};
+interface TrackingEvent {
+  id:         string;
+  campaignId: string;
+  sessionId:  string;
+  eventType:  string;
+  revenue:    number | null;
+  createdAt:  string;
+}
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Data Explorer ────────────────────────────────────────────────────────────
 
-export default function MissionControl({ maskedDb, vercelEnv, region }: Props) {
-  const envStyle = ENV_STYLE[vercelEnv] ?? ENV_STYLE.local;
+function DataExplorer() {
+  const [tab, setTab]           = useState<"campaigns" | "events">("campaigns");
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [events, setEvents]     = useState<TrackingEvent[]>([]);
+  const [status, setStatus]     = useState<"idle" | "loading" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const load = useCallback(async () => {
+    setStatus("loading");
+    try {
+      const res = await fetch("/marketing/api/explorer");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      setCampaigns(data.campaigns ?? []);
+      setEvents(data.events ?? []);
+      setStatus("idle");
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : "Unknown error");
+      setStatus("error");
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
 
   return (
-    <div className="h-screen overflow-y-auto bg-slate-950 text-white font-sans">
+    <div>
+      {/* Header row */}
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-[10px] font-semibold tracking-widest uppercase text-white/25">Live Data Explorer</p>
+        <button
+          onClick={load}
+          disabled={status === "loading"}
+          className="text-[11px] font-medium px-3 py-1 rounded border border-white/[0.08] text-white/40 hover:text-white hover:border-white/20 transition-colors disabled:opacity-40"
+        >
+          {status === "loading" ? "Loading…" : "↺ Refresh"}
+        </button>
+      </div>
 
-      {/* Header */}
-      <header className="border-b border-slate-800/60 px-8 py-4">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
-            <span className="text-xs font-semibold tracking-[0.15em] uppercase text-slate-400">VideoEV</span>
-            <span className="text-slate-700">/</span>
-            <span className="text-sm font-semibold text-white">Mission Control</span>
+      {/* Tab bar */}
+      <div className="flex gap-1 mb-3">
+        {(["campaigns", "events"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              tab === t
+                ? "bg-white/[0.08] text-white"
+                : "text-white/35 hover:text-white/60"
+            }`}
+          >
+            {t === "campaigns" ? "Active Campaigns" : "Recent Events"}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+        {status === "error" ? (
+          <div className="px-6 py-8 text-center">
+            <p className="text-sm text-red-400">{errorMsg}</p>
+            <button onClick={load} className="mt-3 text-xs text-white/40 hover:text-white transition-colors">Retry</button>
           </div>
-          <div className="flex items-center gap-4 text-xs text-slate-500">
-            <Clock />
-            <span className={`px-2 py-0.5 rounded border text-[11px] font-medium uppercase tracking-wider ${envStyle}`}>
-              {vercelEnv}
-            </span>
+        ) : status === "loading" && campaigns.length === 0 ? (
+          <div className="px-6 py-8 text-center text-sm text-white/25">Fetching from Neon…</div>
+        ) : tab === "campaigns" ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-white/[0.06]">
+                  {["Brand", "Sector", "CPM", "Events", "Status", "Created"].map((h) => (
+                    <th key={h} className="px-4 py-2.5 text-left text-[10px] font-semibold tracking-widest uppercase text-white/25 whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/[0.04]">
+                {campaigns.length === 0 ? (
+                  <tr><td colSpan={6} className="px-4 py-6 text-center text-white/25">No campaigns yet</td></tr>
+                ) : campaigns.map((c) => (
+                  <tr key={c.id} className="hover:bg-white/[0.02] transition-colors">
+                    <td className="px-4 py-3 font-medium text-white/80 whitespace-nowrap">{c.brandName}</td>
+                    <td className="px-4 py-3 text-white/40 whitespace-nowrap">{c.sector}</td>
+                    <td className="px-4 py-3 text-white/60 whitespace-nowrap font-mono">${c.baseCpm.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-white/40 whitespace-nowrap">{c._count.trackingEvents}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                        c.isActive ? "bg-teal-500/10 text-teal-400" : "bg-white/[0.05] text-white/25"
+                      }`}>
+                        {c.isActive ? "● Active" : "Paused"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-white/25 whitespace-nowrap font-mono">{fmt(c.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-white/[0.06]">
+                  {["Campaign ID", "Session", "Event", "Revenue", "Time"].map((h) => (
+                    <th key={h} className="px-4 py-2.5 text-left text-[10px] font-semibold tracking-widest uppercase text-white/25 whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/[0.04]">
+                {events.length === 0 ? (
+                  <tr><td colSpan={5} className="px-4 py-6 text-center text-white/25">No events yet</td></tr>
+                ) : events.map((e) => (
+                  <tr key={e.id} className="hover:bg-white/[0.02] transition-colors">
+                    <td className="px-4 py-3 font-mono text-white/30 whitespace-nowrap">{e.campaignId.slice(0, 8)}…</td>
+                    <td className="px-4 py-3 font-mono text-white/30 whitespace-nowrap">{e.sessionId.slice(0, 8)}…</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                        e.eventType === "impression" ? "bg-blue-500/10 text-blue-400" :
+                        e.eventType === "complete"   ? "bg-teal-500/10 text-teal-400" :
+                        e.eventType === "qr_scan"    ? "bg-amber-500/10 text-amber-400" :
+                                                       "bg-white/[0.05] text-white/40"
+                      }`}>{e.eventType}</span>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-white/40 whitespace-nowrap">
+                      {e.revenue != null ? `$${Number(e.revenue).toFixed(4)}` : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-white/25 whitespace-nowrap font-mono">{fmt(e.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function MissionControl({ maskedDb, vercelEnv, region }: Props) {
+  const isProd = vercelEnv === "production";
+
+  return (
+    <div className="h-screen overflow-y-auto bg-[#080c14] text-white antialiased">
+
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-10 bg-[#080c14]/90 backdrop-blur border-b border-white/[0.06] px-8 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="3" fill="#2dd4bf" />
+            <circle cx="8" cy="8" r="6" stroke="#2dd4bf" strokeWidth="1" strokeOpacity="0.3" />
+          </svg>
+          <span className="text-sm font-semibold tracking-tight">VideoEV</span>
+          <span className="text-white/20 text-sm">/</span>
+          <span className="text-sm text-white/50">Mission Control</span>
+        </div>
+
+        {/* Status strip */}
+        <div className="flex items-center gap-5 text-xs text-white/40">
+          <span className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" />
+            <span className="text-white/60">Systems online</span>
+          </span>
+          <span className="text-white/20">|</span>
+          <span><LiveClock /></span>
+          <span className="text-white/20">|</span>
+          <span className={`font-medium ${isProd ? "text-teal-400" : "text-amber-400"}`}>
+            {vercelEnv} · {region}
+          </span>
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-8 py-10 space-y-10">
+      <div className="px-8 py-8 max-w-5xl mx-auto space-y-8">
 
-        {/* ── Navigation Hub ──────────────────────────────────────────────── */}
-        <section>
-          <h2 className="text-[11px] font-semibold tracking-[0.14em] uppercase text-slate-500 mb-4">
-            Navigation Hub
-          </h2>
-          <div className="grid grid-cols-3 gap-4">
-            {NAV_CARDS.map(card => (
-              <a
-                key={card.label}
-                href={card.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`group block bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg hover:shadow-xl transition-all duration-200 ${ACCENT_CARD[card.accent]}`}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <span className="text-2xl">{card.icon}</span>
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${ACCENT_BADGE[card.accent]}`}>
-                    {card.badge}
-                  </span>
-                </div>
-                <p className="text-base font-semibold text-white mb-1 group-hover:text-teal-300 transition-colors">
-                  {card.label}
-                </p>
-                <p className="text-xs text-slate-500 leading-relaxed">{card.description}</p>
-                <p className="mt-3 text-[11px] text-slate-600 group-hover:text-slate-400 transition-colors">
-                  Open ↗
-                </p>
-              </a>
-            ))}
-          </div>
-        </section>
+        {/* ── Primary nav — asymmetric: 1 featured + 2 secondary ─────────── */}
+        <div className="grid grid-cols-3 gap-3 h-52">
 
-        {/* ── System Vitals ───────────────────────────────────────────────── */}
-        <section>
-          <h2 className="text-[11px] font-semibold tracking-[0.14em] uppercase text-slate-500 mb-4">
-            System Vitals
-          </h2>
-          <div className="grid grid-cols-3 gap-4">
-
-            {/* Status */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-              <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">System Status</p>
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
-                <span className="text-sm font-semibold text-teal-300">All Systems Online</span>
+          {/* Featured — Campaign Admin */}
+          <a
+            href="https://ads.videoev.com/admin/campaigns"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="col-span-2 group relative overflow-hidden rounded-xl border border-teal-500/20 bg-gradient-to-br from-teal-950/40 to-slate-900/60 p-6 flex flex-col justify-between hover:border-teal-400/40 transition-all duration-200"
+          >
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-[10px] font-semibold tracking-widest uppercase text-teal-400">Live</span>
+                <span className="w-1 h-1 rounded-full bg-teal-400 animate-pulse" />
               </div>
-              <p className="text-xs text-slate-600 mt-2">Neon · Vercel · AdCP · VAST 4.0</p>
+              <h2 className="text-2xl font-semibold tracking-tight text-white">Campaign Admin</h2>
+              <p className="mt-1.5 text-sm text-white/45 leading-relaxed max-w-xs">
+                Create and configure campaigns. The auction engine reads from this in real time.
+              </p>
             </div>
-
-            {/* Environment */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-              <p className="text-[11px] text-slate-500 uppercase tracking-wider mb-2">Environment</p>
-              <p className="text-sm font-semibold text-white capitalize">{vercelEnv}</p>
-              <p className="text-xs text-slate-600 mt-1">Region: {region}</p>
-              <p className="text-xs text-slate-600">Next.js 16 · Turbopack</p>
+            <div className="flex items-center gap-1.5 text-teal-400/70 text-xs group-hover:text-teal-300 transition-colors">
+              <span>ads.videoev.com/admin/campaigns</span>
+              <span>↗</span>
             </div>
+            {/* Subtle grid texture */}
+            <div className="pointer-events-none absolute inset-0 opacity-[0.03]"
+              style={{ backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)", backgroundSize: "20px 20px" }}
+            />
+          </a>
 
-            {/* Database */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[11px] text-slate-500 uppercase tracking-wider">Database</p>
-                <CopyButton text={maskedDb} />
+          {/* Secondary — stacked */}
+          <div className="flex flex-col gap-3">
+            <a
+              href="https://data.videoev.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 group rounded-xl border border-white/[0.07] bg-white/[0.03] p-4 flex flex-col justify-between hover:border-violet-500/30 hover:bg-violet-950/20 transition-all duration-200"
+            >
+              <div>
+                <span className="text-[10px] font-semibold tracking-widest uppercase text-white/25">Soon</span>
+                <h3 className="mt-1 text-sm font-semibold text-white/70 group-hover:text-white transition-colors">Client Analytics</h3>
               </div>
-              <p className="text-xs font-mono text-slate-300 break-all leading-relaxed">{maskedDb}</p>
-            </div>
-
+              <p className="text-[11px] text-white/30">data.videoev.com ↗</p>
+            </a>
+            <a
+              href="https://ads.videoev.com/plugin/demo"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 group rounded-xl border border-white/[0.07] bg-white/[0.03] p-4 flex flex-col justify-between hover:border-amber-500/30 hover:bg-amber-950/20 transition-all duration-200"
+            >
+              <div>
+                <span className="text-[10px] font-semibold tracking-widest uppercase text-amber-500/60">Demo</span>
+                <h3 className="mt-1 text-sm font-semibold text-white/70 group-hover:text-white transition-colors">CPO Demo Plugin</h3>
+              </div>
+              <p className="text-[11px] text-white/30">ads.videoev.com/plugin/demo ↗</p>
+            </a>
           </div>
-        </section>
+        </div>
 
-        {/* ── Bottom two columns ───────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 gap-6">
+        {/* ── System vitals — inline strip ───────────────────────────────── */}
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-6 py-4 grid grid-cols-4 divide-x divide-white/[0.06]">
+          <div className="pr-6">
+            <p className="text-[10px] font-semibold tracking-widest uppercase text-white/25 mb-1">Status</p>
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
+              <span className="text-sm font-medium text-teal-300">All systems go</span>
+            </div>
+          </div>
+          <div className="px-6">
+            <p className="text-[10px] font-semibold tracking-widest uppercase text-white/25 mb-1">Environment</p>
+            <p className={`text-sm font-medium capitalize ${isProd ? "text-teal-300" : "text-amber-300"}`}>{vercelEnv}</p>
+          </div>
+          <div className="px-6">
+            <p className="text-[10px] font-semibold tracking-widest uppercase text-white/25 mb-1">Stack</p>
+            <p className="text-sm font-medium text-white/60">Next.js 16 · Prisma 7 · Neon</p>
+          </div>
+          <div className="pl-6">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[10px] font-semibold tracking-widest uppercase text-white/25">Database</p>
+              <CopyButton text={maskedDb} compact />
+            </div>
+            <p className="text-[11px] font-mono text-white/40 truncate">{maskedDb.split("@")[1] ?? maskedDb}</p>
+          </div>
+        </div>
 
-          {/* Quick-Copy Snippets */}
-          <section>
-            <h2 className="text-[11px] font-semibold tracking-[0.14em] uppercase text-slate-500 mb-4">
-              Quick-Copy Endpoints
-            </h2>
-            <div className="space-y-2">
-              {API_ENDPOINTS.map(ep => (
-                <div
-                  key={ep.label}
-                  className="bg-slate-900 border border-slate-800 rounded-lg px-4 py-3"
-                >
-                  <div className="flex items-center justify-between gap-3 mb-1">
-                    <span className="text-xs font-semibold text-white">{ep.label}</span>
-                    <CopyButton text={ep.url} />
+        {/* ── Bottom: endpoints + infra ───────────────────────────────────── */}
+        <div className="grid grid-cols-[1fr_260px] gap-5">
+
+          {/* Endpoints */}
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold tracking-widest uppercase text-white/25 mb-3">API Endpoints</p>
+            <div className="rounded-xl border border-white/[0.06] overflow-hidden divide-y divide-white/[0.06]">
+              {ENDPOINTS.map((ep) => (
+                <div key={ep.label} className="flex items-center gap-4 px-4 py-3 bg-white/[0.02] hover:bg-white/[0.04] transition-colors group">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-xs font-semibold text-white/80">{ep.label}</span>
+                    </div>
+                    <p className="text-[11px] font-mono text-white/35 truncate">{ep.url}</p>
+                    <p className="text-[11px] text-white/25 mt-0.5">{ep.note}</p>
                   </div>
-                  <p className="text-[11px] font-mono text-slate-500 truncate mb-1">{ep.url}</p>
-                  <p className="text-[11px] text-slate-600">{ep.description}</p>
+                  <CopyButton text={ep.url} />
                 </div>
               ))}
             </div>
-          </section>
+          </div>
 
-          {/* Infrastructure Links */}
-          <section>
-            <h2 className="text-[11px] font-semibold tracking-[0.14em] uppercase text-slate-500 mb-4">
-              Infrastructure
-            </h2>
-            <div className="space-y-2">
-              {INFRA_LINKS.map(link => (
+          {/* Infrastructure */}
+          <div>
+            <p className="text-[10px] font-semibold tracking-widest uppercase text-white/25 mb-3">Infrastructure</p>
+            <div className="rounded-xl border border-white/[0.06] overflow-hidden divide-y divide-white/[0.06]">
+              {INFRA.map((link) => (
                 <a
                   key={link.label}
                   href={link.href}
                   target={link.href.startsWith("http://localhost") ? "_self" : "_blank"}
                   rel="noopener noreferrer"
-                  className="flex items-center gap-4 bg-slate-900 border border-slate-800 rounded-lg px-4 py-3 hover:border-slate-600 hover:bg-slate-800/60 transition-all group"
+                  className="flex items-center justify-between px-4 py-3 bg-white/[0.02] hover:bg-white/[0.04] transition-colors group"
                 >
-                  <span className="text-xl w-7 text-center">{link.icon}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white group-hover:text-teal-300 transition-colors">
-                      {link.label}
-                    </p>
-                    <p className="text-[11px] text-slate-500">{link.sublabel}</p>
+                  <div>
+                    <p className="text-xs font-semibold text-white/70 group-hover:text-white transition-colors">{link.label}</p>
+                    <p className="text-[11px] text-white/25">{link.sub}</p>
                   </div>
-                  <span className="text-slate-600 group-hover:text-slate-400 transition-colors text-xs">↗</span>
+                  <span className="text-white/20 group-hover:text-white/50 transition-colors text-xs">↗</span>
                 </a>
               ))}
             </div>
-          </section>
+          </div>
 
         </div>
+
+        {/* ── Live Data Explorer ──────────────────────────────────────────── */}
+        <DataExplorer />
 
       </div>
     </div>
