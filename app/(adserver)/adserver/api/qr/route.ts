@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
       data: {
         eventType:  'qr_scan',
         campaignId,
-        sessionId:  sessionId ?? undefined,
+        sessionId,
         revenue:    null,
       },
     }).catch(err => console.error('[qr tracking]', err))
