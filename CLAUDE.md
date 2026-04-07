@@ -16,11 +16,27 @@ This file is Claude's persistent memory for this project. Read it at the start o
 
 ## What this product is
 
-VideoEV AdServer (`ads.videoev.com`) is two things in one Next.js app:
+This is a **multi-domain Next.js 16 monorepo** — one app, three route groups, three domains:
 
-1. **Ad decision API** — a VAST 4.0 server that accepts targeting signals and returns ad creatives matched to EV charging context. This is the real product backend.
-2. **Interactive sandbox** (`/`) — a kiosk simulation UI where you can tweak all 9 targeting signals via dropdowns and watch the VAST tag update live, serving real video ads.
-3. **API documentation** (`/docs`) — full reference page for the decision endpoint.
+| Domain | Route group | Purpose |
+|---|---|---|
+| `ads.videoev.com` | `(adserver)` | VAST 4.0 ad decision engine + interactive sandbox + Campaign Admin |
+| `mc.videoev.com` | `(marketing)` | Mission Control — master nav page + full platform docs |
+| `data.videoev.com` (adserver copy) | `(data)` | Data dashboard (also in `../videoev-dashboard`) |
+
+### `(adserver)` — ads.videoev.com
+1. **Ad decision API** (`/api/decision`) — VAST 4.0, 9 targeting signals, DB-first auction
+2. **Interactive sandbox** (`/adserver`) — kiosk UI with live VAST tag debugger
+3. **API docs** (`/adserver/docs`) — full endpoint reference
+4. **Campaign Admin** (`/adserver/admin/campaigns`) — three-column DB campaign manager
+
+### `(marketing)` — mc.videoev.com
+- **Mission Control** (`/marketing/mission-control`) — master hub: nav cards to all services, system vitals, API endpoints, infra links, Live Data Explorer
+- **Platform Docs** (`/marketing/mission-control/docs`) — full platform README with TOC: Platform Overview · Architecture · all 4 domains · Infrastructure · End-to-End Data Flow · API Reference
+- `MissionControl.tsx` — `"use client"` component; server page passes `maskedDb`, `vercelEnv`, `region` props (DATABASE_URL never reaches client)
+
+### `(data)` — data route (also served from `../videoev-dashboard`)
+- `app/(data)/data/page.tsx` + `DataDashboard.tsx` — publisher analytics dashboard (mirrors videoev-dashboard repo)
 
 The companion demo app is at `../videoev-demo` (demo.videoev.com) — the full kiosk/mobile/in-car charging flow.
 
@@ -47,25 +63,37 @@ npm run dev   # port 3004 (via launch.json) or default 3000
 
 ```
 app/
-  page.tsx                        — interactive sandbox kiosk UI
-  docs/page.tsx                   — API reference documentation page
-  plugin/demo/page.tsx            — plugin integration demo (8 scenarios)
-  admin/
-    campaigns/page.tsx            — Campaign Admin Portal UI ("use client")
-    api/campaigns/route.ts        — GET (list) + POST (create) campaigns
+  layout.tsx                                     — root layout
+  globals.css                                    — global styles
+  (adserver)/adserver/
+    page.tsx                                     — interactive sandbox kiosk UI ("use client")
+    docs/page.tsx                                — API reference documentation page
+    plugin/demo/page.tsx                         — plugin integration demo (8 scenarios)
+    admin/
+      campaigns/page.tsx                         — Campaign Admin Portal UI ("use client")
+      api/campaigns/route.ts                     — GET (list) + POST (create) campaigns
+  (marketing)/marketing/
+    page.tsx                                     — marketing root (redirects to mission-control)
+    MissionControl.tsx                           — "use client" Mission Control UI component
+    mission-control/
+      page.tsx                                   — server page: reads env, passes masked props to MissionControl
+      docs/page.tsx                              — full platform docs ("use client", TOC sidebar + anchored sections)
+  (data)/data/
+    page.tsx                                     — data dashboard server component
+    DataDashboard.tsx                            — client component
   api/
-    decision/route.ts             — VAST 4.0 ad decision engine (DB-first)
-    track/route.ts                — pixel tracker → writes TrackingEvent rows
+    decision/route.ts                            — VAST 4.0 ad decision engine (DB-first)
+    track/route.ts                               — pixel tracker → writes TrackingEvent rows
 components/
-  ImaPlayer.tsx                   — VideoAd: resolves VAST XML → plays S3 .mp4
+  ImaPlayer.tsx                                  — VideoAd: resolves VAST XML → plays S3 .mp4
 lib/
-  prisma.ts                       — singleton PrismaPg client (Prisma 7)
-  ad-generator.ts                 — generates 315-ad static AD_BANK (fallback)
-  generated/prisma/               — auto-generated Prisma client (gitignored)
+  prisma.ts                                      — singleton PrismaPg client (Prisma 7)
+  ad-generator.ts                                — generates 315-ad static AD_BANK (fallback)
+  generated/prisma/                              — auto-generated Prisma client (gitignored)
 prisma/
-  schema.prisma                   — Campaign + TrackingEvent models
-  migrations/20260331181735_init/ — initial migration (applied to Neon)
-prisma.config.ts                  — Prisma 7 CLI datasource config
+  schema.prisma                                  — Campaign + TrackingEvent models
+  migrations/20260331181735_init/                — initial migration (applied to Neon)
+prisma.config.ts                                 — Prisma 7 CLI datasource config
 ```
 
 ### API routes
@@ -273,13 +301,22 @@ Multiplier rule → JSON mapping:
 
 **Session: March 2026 — VAST fix, Campaign Admin, Prisma/Neon, Vercel deploy**
 
-- ✅ **VAST 4.0 XML fix**: Stripped Markdown-style `[CACHEBUSTING]`/`[TIMESTAMP]`/`[ERRORCODE]` macros from CDATA blocks. Replaced with server-side values: `cb = Date.now()`, `ts = new Date().toISOString()`, error code `900`. `<MediaFile>` CDATA whitespace collapsed.
-- ✅ **Campaign Admin Portal** (`/admin/campaigns`): Three-column dashboard — campaign list (left), builder form with multiplier rule engine (center), syntax-highlighted JSON output (right).
-- ✅ **Prisma 7 + Neon**: Initialized Prisma 7.6.0 with `@prisma/adapter-pg`. Schema has `Campaign` + `TrackingEvent` models. Migration `20260331181735_init` applied to live Neon DB.
-- ✅ **DB-first auction**: `/api/decision` fetches active campaigns from Neon, scores them with the existing `scoreAd()` engine, falls back to static `AD_BANK` if DB unavailable.
-- ✅ **Attribution tracking**: `/api/track` fire-and-forget inserts `TrackingEvent` rows when `campaign_id` param is present.
-- ✅ **Admin API**: `GET /admin/api/campaigns` + `POST /admin/api/campaigns` routes wired to Prisma.
-- ✅ **Vercel deploy**: `postinstall: prisma generate` added to `package.json`. Deployed to `ads.videoev.com` (commit `abc17a9`). Build: 5.4s compile, 5.1s TypeScript, 10 pages.
+- ✅ **VAST 4.0 XML fix**: Stripped Markdown-style `[CACHEBUSTING]`/`[TIMESTAMP]`/`[ERRORCODE]` macros. Replaced with server-side values: `cb = Date.now()`, `ts = new Date().toISOString()`, error code `900`.
+- ✅ **Campaign Admin Portal** (`/adserver/admin/campaigns`): Three-column dashboard — campaign list (left), builder form + multiplier rule engine (center), syntax-highlighted JSON output (right).
+- ✅ **Prisma 7 + Neon**: Initialized with `@prisma/adapter-pg`. Schema: `Campaign` + `TrackingEvent`. Migration `20260331181735_init` applied to Neon.
+- ✅ **DB-first auction**: `/api/decision` fetches active campaigns from Neon, falls back to static `AD_BANK`.
+- ✅ **Attribution tracking**: `/api/track` fire-and-forget `TrackingEvent` rows when `campaign_id` present.
+- ✅ **Vercel deploy**: `postinstall: prisma generate` in `package.json`. Live at ads.videoev.com.
+
+**Session: April 2026 — Mission Control + Platform Docs (mc.videoev.com)**
+
+- ✅ **Route group refactor**: App restructured into three route groups — `(adserver)`, `(marketing)`, `(data)`
+- ✅ **Mission Control** (`/marketing/mission-control` → mc.videoev.com): Master hub with nav cards (Campaign Admin, Client Analytics, CPO Demo Plugin), system vitals strip (status · env · stack · DB), API endpoints panel, infra links, Live Data Explorer (campaigns + events tabs from Neon)
+- ✅ **Platform Docs** (`/marketing/mission-control/docs`): Full platform README — TOC sidebar, anchored sections covering: Platform Overview · Architecture · ads/data/demo/mc domains · Infrastructure · End-to-End Data Flow · API Reference
+- ✅ **`MissionControl.tsx`**: `"use client"` component; server page masks DATABASE_URL before passing down; shows `vercelEnv` + `vercelRegion` from env
+- ✅ **Live Data Explorer**: `DataExplorer` client component fetches `/marketing/api/explorer` — campaigns table + recent events table, refresh button, tab switcher
+- ✅ Deployed — mc.videoev.com live ✅
 
 **In-progress / next up:**
-- Nothing pending — ads.videoev.com is live and DB-backed in production.
+- Keep mc.videoev.com links updated as new domains/tools are added
+- Platform Docs (`/docs`) should be updated whenever architecture changes
