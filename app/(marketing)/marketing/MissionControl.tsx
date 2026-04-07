@@ -34,10 +34,12 @@ const ENDPOINTS = [
 ] as const;
 
 const INFRA = [
-  { label: "Vercel",        sub: "Deployments · Logs",    href: "https://vercel.com/arvin-nundlolls-projects/videoev-adserver" },
-  { label: "Neon Database", sub: "neondb · us-east-1",    href: "https://console.neon.tech" },
-  { label: "Prisma Studio", sub: "localhost:5555",         href: "http://localhost:5555" },
-  { label: "Ad Sandbox",    sub: "Kiosk + VAST debugger",  href: "https://ads.videoev.com" },
+  { label: "Vercel",        sub: "Deployments · Logs",         href: "https://vercel.com/arvin-nundlolls-projects" },
+  { label: "Neon Database", sub: "neondb · us-east-1",         href: "https://console.neon.tech" },
+  { label: "Clerk",         sub: "Auth · Users · Sessions",    href: "https://dashboard.clerk.com" },
+  { label: "Resend",        sub: "Email · Leads · Auto-reply", href: "https://resend.com/emails" },
+  { label: "Prisma Studio", sub: "localhost:5555",              href: "http://localhost:5555" },
+  { label: "Ad Sandbox",    sub: "Kiosk + VAST debugger",      href: "https://ads.videoev.com" },
   { label: "Platform Docs", sub: "Master README · all domains", href: "/marketing/mission-control/docs" },
 ] as const;
 
@@ -333,7 +335,10 @@ export default function MissionControl({ maskedDb, vercelEnv, region }: Props) {
               className="flex-1 group rounded-xl border border-white/[0.07] bg-white/[0.03] p-4 flex flex-col justify-between hover:border-violet-500/30 hover:bg-violet-950/20 transition-all duration-200"
             >
               <div>
-                <span className="text-[10px] font-semibold tracking-widest uppercase text-white/25">Soon</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-semibold tracking-widest uppercase text-violet-400">Live</span>
+                  <span className="w-1 h-1 rounded-full bg-violet-400 animate-pulse" />
+                </div>
                 <h3 className="mt-1 text-sm font-semibold text-white/70 group-hover:text-white transition-colors">Client Analytics</h3>
               </div>
               <p className="text-[11px] text-white/30">data.videoev.com ↗</p>
