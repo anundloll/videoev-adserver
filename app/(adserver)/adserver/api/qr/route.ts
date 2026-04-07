@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const campaignId  = searchParams.get('cid')   ?? ''
-  const sessionId   = searchParams.get('sid')   ?? null
+  const sessionId   = searchParams.get('sid')   ?? ''
   const destination = searchParams.get('url')   ?? 'https://videoev.com'
 
   // Fire-and-forget — don't block the redirect on DB write
